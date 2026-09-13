@@ -9,6 +9,13 @@ This repo holds two independent projects side by side (not a monorepo with share
 
 ## Local dev
 
+Copy the env template and fill in real values (see [`.env.example`](./.env.example)):
+
+```bash
+cp .env.example .env
+cp .env.example backend/.env   # only needed if you run the backend outside Docker
+```
+
 ```bash
 docker compose up
 ```
@@ -16,6 +23,9 @@ docker compose up
 - Backend: http://localhost:8080
 - Frontend: http://localhost:5173
 - Swagger UI: http://localhost:8080/swagger-ui.html
+- MySQL: localhost:3306
+
+> Note: `full-spec.md` specifies PostgreSQL, but this project runs on MySQL instead (project decision).
 
 Or run each separately:
 

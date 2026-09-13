@@ -1,0 +1,11 @@
+@import 'tailwindcss';
+@config '../tailwind.config.js';
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  @apply font-sans bg-surface text-ink dark:bg-surface-dark dark:text-ink-dark;
+  margin: 0;
+}

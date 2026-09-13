@@ -20,9 +20,9 @@ cp .env.example backend/.env   # only needed if you run the backend outside Dock
 docker compose up
 ```
 
-- Backend: http://localhost:8080
+- Backend: http://localhost:5000
 - Frontend: http://localhost:5173
-- Swagger UI: http://localhost:8080/swagger-ui.html
+- Swagger UI: http://localhost:5000/swagger-ui.html
 - MySQL: localhost:3306
 
 > Note: `full-spec.md` specifies PostgreSQL, but this project runs on MySQL instead (project decision).

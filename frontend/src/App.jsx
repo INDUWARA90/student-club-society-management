@@ -1,13 +1,25 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import ForgotPasswordPage from './features/auth/ForgotPasswordPage'
+import LoginPage from './features/auth/LoginPage'
+import RegisterPage from './features/auth/RegisterPage'
+import ResetPasswordPage from './features/auth/ResetPasswordPage'
+import DashboardPage from './pages/DashboardPage'
+import ProtectedRoute from './routes/ProtectedRoute'
+
 function App() {
   return (
-    <div className="flex min-h-svh items-center justify-center">
-      <div className="rounded-xl border border-border bg-surface p-8 text-center shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
-        <h1 className="text-2xl font-semibold">Student Club & Society Management</h1>
-        <p className="mt-2 text-ink-muted dark:text-ink-dark-muted">
-          Project scaffold ready. Build the app here.
-        </p>
-      </div>
-    </div>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<DashboardPage />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 

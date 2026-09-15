@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../api/axios'
+import Breadcrumbs from '../../components/Breadcrumbs'
+import { useToast } from '../../components/ToastProvider'
 import CreateEventModal from '../events/CreateEventModal'
 import { joinClub } from './clubsSlice'
 import LogExpenseModal from './LogExpenseModal'
@@ -13,6 +15,7 @@ function ClubDetailPage() {
   const { clubId } = useParams()
   const dispatch = useDispatch()
   const user = useSelector((state) => state.auth.user)
+  const { showToast } = useToast()
 
   const [club, setClub] = useState(null)
   const [members, setMembers] = useState([])
@@ -47,24 +50,43 @@ function ClubDetailPage() {
     const result = await dispatch(joinClub(clubId))
     if (joinClub.fulfilled.match(result)) {
       setJoinStatus(result.payload.status)
+      showToast(result.payload.status === 'APPROVED' ? 'Joined club' : 'Join request sent — awaiting approval')
+    } else {
+      showToast(result.payload, 'error')
     }
   }
 
   async function reviewRequest(membershipId, approve) {
-    await api.post(`/memberships/${membershipId}/${approve ? 'approve' : 'reject'}`)
-    setPendingRequests((prev) => prev.filter((m) => m.id !== membershipId))
-    if (approve) {
-      const res = await api.get(`/clubs/${clubId}/members`)
-      setMembers(res.data)
+    try {
+      await api.post(`/memberships/${membershipId}/${approve ? 'approve' : 'reject'}`)
+      setPendingRequests((prev) => prev.filter((m) => m.id !== membershipId))
+      showToast(approve ? 'Join request approved' : 'Join request rejected')
+      if (approve) {
+        const res = await api.get(`/clubs/${clubId}/members`)
+        setMembers(res.data)
+      }
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
     }
   }
 
   if (!club) {
-    return <div className="mx-auto max-w-4xl p-4 md:p-8">Loading…</div>
+    return (
+      <div className="mx-auto max-w-4xl p-4 md:p-8">
+        <div className="h-6 w-40 animate-pulse rounded bg-surface-muted dark:bg-surface-dark-muted" />
+        <div className="mt-4 h-24 animate-pulse rounded-xl bg-surface-muted dark:bg-surface-dark-muted" />
+        <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-xl bg-surface-muted dark:bg-surface-dark-muted" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
+      <Breadcrumbs items={[{ label: 'Clubs', to: '/clubs' }, { label: club.name }]} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-ink dark:text-ink-dark">{club.name}</h1>

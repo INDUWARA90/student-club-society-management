@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
+import ToastProvider from '../../components/ToastProvider'
 import clubsReducer from './clubsSlice'
 import ClubsPage from './ClubsPage'
 
@@ -15,7 +16,9 @@ function renderWithProviders(ui) {
   const store = configureStore({ reducer: { clubs: clubsReducer } })
   return render(
     <Provider store={store}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </ToastProvider>
     </Provider>,
   )
 }

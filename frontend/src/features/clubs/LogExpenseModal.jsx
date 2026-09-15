@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import api from '../../api/axios'
+import { useToast } from '../../components/ToastProvider'
 
 const inputClass =
   'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark'
 
 function LogExpenseModal({ clubId, onClose, onLogged }) {
+  const { showToast } = useToast()
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [error, setError] = useState(null)
@@ -19,10 +21,13 @@ function LogExpenseModal({ clubId, onClose, onLogged }) {
     setSubmitting(true)
     try {
       const { data } = await api.post(`/clubs/${clubId}/expenses`, { description, amount: Number(amount) })
+      showToast('Expense logged')
       onLogged?.(data)
       onClose()
     } catch (e2) {
-      setError(e2.response?.data?.message || 'Something went wrong')
+      const message = e2.response?.data?.message || 'Something went wrong'
+      setError(message)
+      showToast(message, 'error')
     } finally {
       setSubmitting(false)
     }

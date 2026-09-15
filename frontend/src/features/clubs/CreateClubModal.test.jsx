@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Provider } from 'react-redux'
 import { describe, expect, it, vi } from 'vitest'
+import ToastProvider from '../../components/ToastProvider'
 import clubsReducer from './clubsSlice'
 import CreateClubModal from './CreateClubModal'
 
@@ -12,7 +13,11 @@ vi.mock('../../api/axios', () => ({
 
 function renderWithProviders(ui) {
   const store = configureStore({ reducer: { clubs: clubsReducer } })
-  return render(<Provider store={store}>{ui}</Provider>)
+  return render(
+    <Provider store={store}>
+      <ToastProvider>{ui}</ToastProvider>
+    </Provider>,
+  )
 }
 
 describe('CreateClubModal', () => {

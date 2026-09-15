@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
+import { useToast } from '../../components/ToastProvider'
 import { createEvent } from './eventsSlice'
 
 const inputClass =
@@ -7,6 +8,7 @@ const inputClass =
 
 function CreateEventModal({ clubId, onClose, onCreated }) {
   const dispatch = useDispatch()
+  const { showToast } = useToast()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [eventDate, setEventDate] = useState('')
@@ -32,10 +34,17 @@ function CreateEventModal({ clubId, onClose, onCreated }) {
     const result = await dispatch(createEvent({ clubId, payload }))
     setSubmitting(false)
     if (createEvent.fulfilled.match(result)) {
-      onCreated?.(result.payload)
+      const created = result.payload
+      showToast(
+        created.approvalStatus === 'PENDING'
+          ? 'Event submitted for Faculty Advisor approval'
+          : 'Event created',
+      )
+      onCreated?.(created)
       onClose()
     } else {
       setError(result.payload)
+      showToast(result.payload, 'error')
     }
   }
 

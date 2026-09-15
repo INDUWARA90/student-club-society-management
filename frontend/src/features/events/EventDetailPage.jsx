@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useParams } from 'react-router-dom'
 import api from '../../api/axios'
+import Breadcrumbs from '../../components/Breadcrumbs'
+import { useToast } from '../../components/ToastProvider'
 
 const OFFICER_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
 
@@ -12,6 +14,7 @@ function formatDate(iso) {
 function EventDetailPage() {
   const { eventId } = useParams()
   const user = useSelector((state) => state.auth.user)
+  const { showToast } = useToast()
 
   const [event, setEvent] = useState(null)
   const [rsvps, setRsvps] = useState([])
@@ -55,42 +58,59 @@ function EventDetailPage() {
       if (Number(event.fee) > 0) {
         await api.post('/payments', { type: 'EVENT', referenceId: eventId, amount: event.fee })
       }
-      await api.post(`/events/${eventId}/rsvp`)
+      const { data } = await api.post(`/events/${eventId}/rsvp`)
+      showToast(data.status === 'WAITLISTED' ? 'Event is full — added to the waitlist' : 'RSVP confirmed')
       load()
     } catch (e) {
-      setError(e.response?.data?.message || 'Something went wrong')
+      const message = e.response?.data?.message || 'Something went wrong'
+      setError(message)
+      showToast(message, 'error')
     }
   }
 
   async function handleCancelRsvp() {
     try {
       await api.delete(`/events/${eventId}/rsvp`)
+      showToast('RSVP cancelled')
       load()
     } catch (e) {
-      setError(e.response?.data?.message || 'Something went wrong')
+      const message = e.response?.data?.message || 'Something went wrong'
+      setError(message)
+      showToast(message, 'error')
     }
   }
 
   async function handleQrCheckIn() {
     try {
       await api.post(`/events/${eventId}/attendance/qr-check-in`)
+      showToast('Checked in')
       load()
     } catch (e) {
-      setError(e.response?.data?.message || 'Something went wrong')
+      const message = e.response?.data?.message || 'Something went wrong'
+      setError(message)
+      showToast(message, 'error')
     }
   }
 
   async function handleMarkManual(userId) {
     try {
       await api.post(`/events/${eventId}/attendance/manual`, { userId, method: 'MANUAL' })
+      showToast('Attendance marked')
       load()
     } catch (e) {
-      setError(e.response?.data?.message || 'Something went wrong')
+      const message = e.response?.data?.message || 'Something went wrong'
+      setError(message)
+      showToast(message, 'error')
     }
   }
 
   if (!event) {
-    return <div className="mx-auto max-w-3xl p-4 md:p-8">Loading…</div>
+    return (
+      <div className="mx-auto max-w-3xl p-4 md:p-8">
+        <div className="h-6 w-40 animate-pulse rounded bg-surface-muted dark:bg-surface-dark-muted" />
+        <div className="mt-4 h-24 animate-pulse rounded-xl bg-surface-muted dark:bg-surface-dark-muted" />
+      </div>
+    )
   }
 
   const isOfficer = OFFICER_POSITIONS.includes(myPosition)
@@ -98,6 +118,14 @@ function EventDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-8">
+      <Breadcrumbs
+        items={[
+          { label: 'Clubs', to: '/clubs' },
+          { label: event.clubName, to: `/clubs/${event.clubId}` },
+          { label: 'Events', to: '/events' },
+          { label: event.title },
+        ]}
+      />
       <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
         {event.clubName}
       </span>

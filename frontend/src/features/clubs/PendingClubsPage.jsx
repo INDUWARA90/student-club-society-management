@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import api from '../../api/axios'
+import { useToast } from '../../components/ToastProvider'
 
 function PendingClubsPage() {
+  const { showToast } = useToast()
   const [clubs, setClubs] = useState([])
   const [error, setError] = useState(null)
 
@@ -17,8 +19,11 @@ function PendingClubsPage() {
     try {
       await api.post(`/clubs/${clubId}/${approve ? 'approve' : 'reject'}`)
       setClubs((prev) => prev.filter((c) => c.id !== clubId))
+      showToast(approve ? 'Club approved' : 'Club rejected')
     } catch (e) {
-      setError(e.response?.data?.message || 'Something went wrong')
+      const message = e.response?.data?.message || 'Something went wrong'
+      setError(message)
+      showToast(message, 'error')
     }
   }
 

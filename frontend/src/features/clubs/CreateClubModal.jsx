@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
+import { useToast } from '../../components/ToastProvider'
 import { createClub } from './clubsSlice'
 
 const inputClass =
@@ -7,6 +8,7 @@ const inputClass =
 
 function CreateClubModal({ onClose, onCreated }) {
   const dispatch = useDispatch()
+  const { showToast } = useToast()
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
@@ -24,10 +26,13 @@ function CreateClubModal({ onClose, onCreated }) {
     const result = await dispatch(createClub({ name, category, description, joinPolicy }))
     setSubmitting(false)
     if (createClub.fulfilled.match(result)) {
-      onCreated?.(result.payload)
+      const created = result.payload
+      showToast(created.status === 'PENDING' ? 'Club proposal submitted for approval' : 'Club created')
+      onCreated?.(created)
       onClose()
     } else {
       setError(result.payload)
+      showToast(result.payload, 'error')
     }
   }
 

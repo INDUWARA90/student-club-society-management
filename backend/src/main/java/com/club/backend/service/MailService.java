@@ -20,6 +20,19 @@ public class MailService {
     private String frontendUrl;
 
     @Async
+    public void sendNotificationEmail(String toEmail, String message) {
+        SimpleMailMessage mail = new SimpleMailMessage();
+        mail.setTo(toEmail);
+        mail.setSubject("Club & Society Management notification");
+        mail.setText(message);
+        try {
+            mailSender.send(mail);
+        } catch (Exception e) {
+            log.warn("Failed to send notification email to {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Async
     public void sendPasswordResetEmail(String toEmail, String token) {
         String resetLink = frontendUrl + "/reset-password?token=" + token;
         SimpleMailMessage message = new SimpleMailMessage();

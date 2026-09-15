@@ -1,0 +1,70 @@
+import { useEffect, useRef, useState } from 'react'
+import api from '../api/axios'
+
+function NotificationBell() {
+  const [notifications, setNotifications] = useState([])
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    load()
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  function load() {
+    api.get('/notifications/me').then((res) => setNotifications(res.data)).catch(() => {})
+  }
+
+  async function markRead(id) {
+    await api.post(`/notifications/${id}/read`)
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+  }
+
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="relative rounded-full p-2 text-ink transition-fast hover:bg-surface-muted dark:text-ink-dark dark:hover:bg-surface-dark"
+        aria-label="Notifications"
+      >
+        🔔
+        {unreadCount > 0 && (
+          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-medium text-white">
+            {unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-border bg-surface p-2 shadow-card-hover dark:border-border-dark dark:bg-surface-dark-muted">
+          {notifications.length === 0 && (
+            <p className="p-3 text-sm text-ink-muted dark:text-ink-dark-muted">No notifications yet.</p>
+          )}
+          <div className="max-h-80 space-y-1 overflow-y-auto">
+            {notifications.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => markRead(n.id)}
+                className={`block w-full rounded-md p-2 text-left text-sm transition-fast hover:bg-surface-muted dark:hover:bg-surface-dark ${
+                  n.read ? 'text-ink-muted dark:text-ink-dark-muted' : 'font-medium text-ink dark:text-ink-dark'
+                }`}
+              >
+                {n.message}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default NotificationBell

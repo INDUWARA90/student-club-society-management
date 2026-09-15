@@ -25,6 +25,14 @@ docker compose up
 - Swagger UI: http://localhost:5000/swagger-ui.html
 - MySQL: localhost:3306
 
+On first run against an empty database, demo/seed data is loaded automatically (2 clubs, sample students,
+events, RSVPs, attendance). Demo accounts (password: `password123`):
+
+- Super Admin: `superadmin@example.com`
+- Faculty Advisor: `advisor@example.com`
+- Student (Tech Innovators President): `alice@example.com`
+- Student: `bob@example.com`, `carol@example.com`, `dave@example.com`
+
 > Note: `full-spec.md` specifies PostgreSQL, but this project runs on MySQL instead (project decision).
 
 Or run each separately:

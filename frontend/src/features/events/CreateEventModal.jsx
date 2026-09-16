@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useToast } from '../../components/ToastProvider'
+import { fileToBase64 } from '../../utils/fileToBase64'
 import { createEvent } from './eventsSlice'
 
 const inputClass =
@@ -14,8 +15,15 @@ function CreateEventModal({ clubId, onClose, onCreated }) {
   const [eventDate, setEventDate] = useState('')
   const [fee, setFee] = useState('0')
   const [capacity, setCapacity] = useState('')
+  const [bannerB64, setBannerB64] = useState(null)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
+  async function handleBannerChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBannerB64(await fileToBase64(file))
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -27,6 +35,7 @@ function CreateEventModal({ clubId, onClose, onCreated }) {
     const payload = {
       title,
       description,
+      bannerB64,
       eventDate: new Date(eventDate).toISOString(),
       fee: Number(fee) || 0,
       capacity: capacity ? Number(capacity) : null,
@@ -76,6 +85,11 @@ function CreateEventModal({ clubId, onClose, onCreated }) {
               value={eventDate}
               onChange={(e) => setEventDate(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="event-banner">Banner</label>
+            <input id="event-banner" type="file" accept="image/*" onChange={handleBannerChange} className="block text-sm text-ink dark:text-ink-dark" />
+            {bannerB64 && <img src={bannerB64} alt="Banner preview" className="mt-2 h-24 w-full rounded-lg object-cover" />}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

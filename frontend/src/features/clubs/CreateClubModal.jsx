@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useToast } from '../../components/ToastProvider'
+import { fileToBase64 } from '../../utils/fileToBase64'
 import { createClub } from './clubsSlice'
 
 const inputClass =
@@ -13,8 +14,15 @@ function CreateClubModal({ onClose, onCreated }) {
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [joinPolicy, setJoinPolicy] = useState('OPEN')
+  const [logoB64, setLogoB64] = useState(null)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
+  async function handleLogoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoB64(await fileToBase64(file))
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -23,7 +31,7 @@ function CreateClubModal({ onClose, onCreated }) {
       return
     }
     setSubmitting(true)
-    const result = await dispatch(createClub({ name, category, description, joinPolicy }))
+    const result = await dispatch(createClub({ name, category, description, joinPolicy, logoB64 }))
     setSubmitting(false)
     if (createClub.fulfilled.match(result)) {
       const created = result.payload
@@ -64,6 +72,11 @@ function CreateClubModal({ onClose, onCreated }) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-logo">Logo</label>
+            <input id="club-logo" type="file" accept="image/*" onChange={handleLogoChange} className="block text-sm text-ink dark:text-ink-dark" />
+            {logoB64 && <img src={logoB64} alt="Logo preview" className="mt-2 h-20 w-20 rounded-lg object-cover" />}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-join-policy">Join policy</label>

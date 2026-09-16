@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSelector } from 'react-redux'
 import api from '../api/axios'
+import { subscribeToNotifications } from '../api/websocket'
+import { useToast } from './ToastProvider'
 
 function NotificationBell() {
+  const user = useSelector((state) => state.auth.user)
+  const { showToast } = useToast()
   const [notifications, setNotifications] = useState([])
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -14,6 +19,15 @@ function NotificationBell() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!user?.id) return
+    const unsubscribe = subscribeToNotifications(user.id, (notification) => {
+      setNotifications((prev) => [notification, ...prev])
+      showToast(notification.message)
+    })
+    return unsubscribe
+  }, [user?.id])
 
   function load() {
     api.get('/notifications/me').then((res) => setNotifications(res.data)).catch(() => {})

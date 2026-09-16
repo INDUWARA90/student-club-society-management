@@ -12,12 +12,14 @@
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.12.0",
+    "@stomp/stompjs": "^7.3.0",
     "axios": "^1.20.0",
     "lucide-react": "^1.45.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-redux": "^9.3.0",
-    "react-router-dom": "^7.18.3"
+    "react-router-dom": "^7.18.3",
+    "sockjs-client": "^1.6.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -3,6 +3,7 @@ package com.club.backend.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import com.club.backend.config.ApiException;
@@ -20,16 +21,19 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final MailService mailService;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    /** Records an in-app notification and fires an async email for the same message. */
+    /** Records an in-app notification, pushes it live over WebSocket, and fires an async email. */
     public void notify(User user, String message) {
         Notification notification = Notification.builder()
                 .user(user)
                 .channel(NotificationChannel.IN_APP)
                 .message(message)
                 .build();
-        notificationRepository.save(notification);
+        notification = notificationRepository.save(notification);
         mailService.sendNotificationEmail(user.getEmail(), message);
+        messagingTemplate.convertAndSend(
+                "/topic/notifications/" + user.getId(), NotificationResponse.from(notification));
     }
 
     public List<NotificationResponse> listMyNotifications(UUID userId) {

@@ -19,9 +19,11 @@ import com.club.backend.dto.RegisterRequest;
 import com.club.backend.dto.ResetPasswordRequest;
 import com.club.backend.dto.UpdateProfileRequest;
 import com.club.backend.dto.UserResponse;
+import com.club.backend.entity.EmailVerificationToken;
 import com.club.backend.entity.PasswordResetToken;
 import com.club.backend.entity.Role;
 import com.club.backend.entity.User;
+import com.club.backend.repository.EmailVerificationTokenRepository;
 import com.club.backend.repository.PasswordResetTokenRepository;
 import com.club.backend.repository.UserRepository;
 import com.club.backend.security.JwtService;
@@ -35,9 +37,11 @@ public class AuthService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final long RESET_TOKEN_TTL_MINUTES = 30;
+    private static final long VERIFICATION_TOKEN_TTL_HOURS = 24;
 
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -51,11 +55,52 @@ public class AuthService {
                 .email(request.email().trim().toLowerCase())
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .role(Role.STUDENT)
+                .emailVerified(false)
                 .build();
         user = userRepository.save(user);
 
+        sendVerificationEmail(user);
+
         String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
         return new AuthResponse(token, UserResponse.from(user));
+    }
+
+    private void sendVerificationEmail(User user) {
+        String token = UUID.randomUUID().toString();
+        EmailVerificationToken verificationToken = EmailVerificationToken.builder()
+                .user(user)
+                .token(token)
+                .expiresAt(Instant.now().plusSeconds(VERIFICATION_TOKEN_TTL_HOURS * 3600))
+                .build();
+        emailVerificationTokenRepository.save(verificationToken);
+        mailService.sendVerificationEmail(user.getEmail(), token);
+    }
+
+    public void verifyEmail(String token) {
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token)
+                .orElseThrow(() -> ApiException.badRequest("Invalid or expired verification link"));
+
+        if (verificationToken.isUsed() || verificationToken.getExpiresAt().isBefore(Instant.now())) {
+            throw ApiException.badRequest("Invalid or expired verification link");
+        }
+
+        User user = verificationToken.getUser();
+        user.setEmailVerified(true);
+        userRepository.save(user);
+
+        verificationToken.setUsed(true);
+        emailVerificationTokenRepository.save(verificationToken);
+    }
+
+    public void resendVerificationEmail(UserPrincipal principal) {
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+
+        if (user.isEmailVerified()) {
+            throw ApiException.badRequest("Your email is already verified");
+        }
+
+        sendVerificationEmail(user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -162,9 +207,17 @@ public class AuthService {
             throw ApiException.conflict("An account with this email already exists");
         }
 
+        boolean emailChanged = !newEmail.equals(user.getEmail());
         user.setName(request.name().trim());
         user.setEmail(newEmail);
+        if (emailChanged) {
+            user.setEmailVerified(false);
+        }
         user = userRepository.save(user);
+
+        if (emailChanged) {
+            sendVerificationEmail(user);
+        }
 
         return UserResponse.from(user);
     }

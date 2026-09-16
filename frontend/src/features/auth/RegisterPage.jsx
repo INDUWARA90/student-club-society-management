@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthCard from './AuthCard'
+import { useToast } from '../../components/ToastProvider'
 import { register } from './authSlice'
 
 const inputClass =
@@ -10,6 +11,7 @@ const inputClass =
 function RegisterPage() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const { status, error } = useSelector((state) => state.auth)
 
   const [name, setName] = useState('')
@@ -32,6 +34,7 @@ function RegisterPage() {
 
     const result = await dispatch(register({ name, email, password }))
     if (register.fulfilled.match(result)) {
+      showToast('Welcome! Check your email to verify your account.')
       navigate('/')
     }
   }

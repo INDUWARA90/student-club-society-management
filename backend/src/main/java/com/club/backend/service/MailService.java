@@ -33,6 +33,20 @@ public class MailService {
     }
 
     @Async
+    public void sendVerificationEmail(String toEmail, String token) {
+        String verifyLink = frontendUrl + "/verify-email?token=" + token;
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(toEmail);
+        message.setSubject("Verify your email");
+        message.setText("Welcome! Click the link below to verify your email address:\n\n" + verifyLink);
+        try {
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.warn("Failed to send verification email to {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Async
     public void sendPasswordResetEmail(String toEmail, String token) {
         String resetLink = frontendUrl + "/reset-password?token=" + token;
         SimpleMailMessage message = new SimpleMailMessage();

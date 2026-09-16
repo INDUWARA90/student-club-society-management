@@ -18,6 +18,7 @@ import com.club.backend.dto.ResetPasswordRequest;
 import com.club.backend.dto.UpdateProfileImageRequest;
 import com.club.backend.dto.UpdateProfileRequest;
 import com.club.backend.dto.UserResponse;
+import com.club.backend.dto.VerifyEmailRequest;
 import com.club.backend.security.UserPrincipal;
 import com.club.backend.service.AuthService;
 
@@ -49,6 +50,18 @@ public class AuthController {
     @PostMapping("/reset-password")
     public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmail(@RequestBody VerifyEmailRequest request) {
+        authService.verifyEmail(request.token());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<Void> resendVerification(@AuthenticationPrincipal UserPrincipal principal) {
+        authService.resendVerificationEmail(principal);
         return ResponseEntity.ok().build();
     }
 

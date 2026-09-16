@@ -60,6 +60,25 @@ export const resetPassword = createAsyncThunk(
   },
 )
 
+export const verifyEmail = createAsyncThunk('auth/verifyEmail', async (token, { rejectWithValue }) => {
+  try {
+    await api.post('/auth/verify-email', { token })
+  } catch (error) {
+    return rejectWithValue(extractErrorMessage(error))
+  }
+})
+
+export const resendVerification = createAsyncThunk(
+  'auth/resendVerification',
+  async (_, { rejectWithValue }) => {
+    try {
+      await api.post('/auth/resend-verification')
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
 export const updateProfile = createAsyncThunk(
   'auth/updateProfile',
   async (payload, { rejectWithValue }) => {

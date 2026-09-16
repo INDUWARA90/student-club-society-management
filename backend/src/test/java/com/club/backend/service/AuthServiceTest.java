@@ -43,6 +43,8 @@ class AuthServiceTest {
     @Mock
     private PasswordResetTokenRepository passwordResetTokenRepository;
     @Mock
+    private com.club.backend.repository.EmailVerificationTokenRepository emailVerificationTokenRepository;
+    @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
     private AuthenticationManager authenticationManager;

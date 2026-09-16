@@ -105,6 +105,7 @@ public class DataSeeder implements CommandLineRunner {
                 .email(email)
                 .passwordHash(passwordEncoder.encode(DEMO_PASSWORD))
                 .role(role)
+                .emailVerified(true)
                 .build());
     }
 

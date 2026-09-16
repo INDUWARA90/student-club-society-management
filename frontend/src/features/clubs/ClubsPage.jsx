@@ -10,11 +10,14 @@ function ClubsPage() {
   const dispatch = useDispatch()
   const { items, status } = useSelector((state) => state.clubs)
   const [category, setCategory] = useState('')
+  const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
 
   useEffect(() => {
     dispatch(fetchClubs(category || undefined))
   }, [dispatch, category])
+
+  const visibleClubs = items.filter((club) => club.name.toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
     <div className="mx-auto max-w-6xl p-4 md:p-8">
@@ -30,6 +33,13 @@ function ClubsPage() {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search clubs by name..."
+          className="min-w-[200px] flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
+        />
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -51,18 +61,18 @@ function ClubsPage() {
         </div>
       )}
 
-      {status !== 'loading' && items.length === 0 && (
+      {status !== 'loading' && visibleClubs.length === 0 && (
         <div className="mt-16 flex flex-col items-center text-center">
           <p className="text-4xl">🏳️</p>
           <p className="mt-3 text-sm text-ink-muted dark:text-ink-dark-muted">
-            No clubs yet — create one!
+            {items.length === 0 ? 'No clubs yet — create one!' : 'No clubs match your search.'}
           </p>
         </div>
       )}
 
-      {status !== 'loading' && items.length > 0 && (
+      {status !== 'loading' && visibleClubs.length > 0 && (
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((club) => (
+          {visibleClubs.map((club) => (
             <Link
               key={club.id}
               to={`/clubs/${club.id}`}

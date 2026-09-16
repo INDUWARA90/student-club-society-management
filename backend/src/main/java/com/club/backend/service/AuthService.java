@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.club.backend.config.ApiException;
 import com.club.backend.dto.AuthResponse;
+import com.club.backend.dto.ChangePasswordRequest;
 import com.club.backend.dto.ForgotPasswordRequest;
 import com.club.backend.dto.LoginRequest;
 import com.club.backend.dto.RegisterRequest;
@@ -123,6 +124,25 @@ public class AuthService {
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> ApiException.notFound("User not found"));
         return UserResponse.from(user);
+    }
+
+    public void changePassword(UserPrincipal principal, ChangePasswordRequest request) {
+        if (isBlank(request.currentPassword()) || isBlank(request.newPassword())) {
+            throw ApiException.badRequest("Current and new password are required");
+        }
+        if (request.newPassword().length() < 8) {
+            throw ApiException.badRequest("New password must be at least 8 characters");
+        }
+
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw ApiException.badRequest("Current password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
     }
 
     public UserResponse updateProfileImage(UserPrincipal principal, String profileImageB64) {

@@ -1,14 +1,22 @@
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import api from '../api/axios'
 import { useToast } from '../components/ToastProvider'
 import { updateProfileImage } from '../features/auth/authSlice'
 import { fileToBase64 } from '../utils/fileToBase64'
+
+const inputClass =
+  'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark'
 
 function ProfilePage() {
   const dispatch = useDispatch()
   const user = useSelector((state) => state.auth.user)
   const { showToast } = useToast()
   const [uploading, setUploading] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [passwordError, setPasswordError] = useState(null)
+  const [changingPassword, setChangingPassword] = useState(false)
 
   async function handleFileChange(e) {
     const file = e.target.files?.[0]
@@ -21,6 +29,28 @@ function ProfilePage() {
       showToast('Profile picture updated')
     } else {
       showToast(result.payload, 'error')
+    }
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault()
+    setPasswordError(null)
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters')
+      return
+    }
+    setChangingPassword(true)
+    try {
+      await api.put('/auth/me/password', { currentPassword, newPassword })
+      setCurrentPassword('')
+      setNewPassword('')
+      showToast('Password changed')
+    } catch (e2) {
+      const message = e2.response?.data?.message || 'Something went wrong'
+      setPasswordError(message)
+      showToast(message, 'error')
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -55,6 +85,42 @@ function ProfilePage() {
           className="block text-sm text-ink dark:text-ink-dark"
         />
       </div>
+
+      <form onSubmit={handleChangePassword} className="mt-8 max-w-sm space-y-4">
+        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Change password</h2>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="current-password">
+            Current password
+          </label>
+          <input
+            id="current-password"
+            type="password"
+            className={inputClass}
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="new-password">
+            New password
+          </label>
+          <input
+            id="new-password"
+            type="password"
+            className={inputClass}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </div>
+        {passwordError && <p className="text-sm text-danger">{passwordError}</p>}
+        <button
+          type="submit"
+          disabled={changingPassword}
+          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
+        >
+          {changingPassword ? 'Changing…' : 'Change password'}
+        </button>
+      </form>
     </div>
   )
 }

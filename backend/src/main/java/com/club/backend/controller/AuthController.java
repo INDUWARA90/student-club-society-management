@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.club.backend.dto.AuthResponse;
+import com.club.backend.dto.ChangePasswordRequest;
 import com.club.backend.dto.ForgotPasswordRequest;
 import com.club.backend.dto.LoginRequest;
 import com.club.backend.dto.RegisterRequest;
@@ -59,5 +60,12 @@ public class AuthController {
     public ResponseEntity<UserResponse> updateProfileImage(@RequestBody UpdateProfileImageRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(authService.updateProfileImage(principal, request.profileImageB64()));
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        authService.changePassword(principal, request);
+        return ResponseEntity.ok().build();
     }
 }

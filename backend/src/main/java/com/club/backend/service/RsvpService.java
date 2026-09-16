@@ -3,6 +3,7 @@ package com.club.backend.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import com.club.backend.config.ApiException;
@@ -26,6 +27,7 @@ public class RsvpService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public RsvpResponse rsvp(UUID eventId, UserPrincipal principal) {
         Event event = eventRepository.findById(eventId)
@@ -54,6 +56,10 @@ public class RsvpService {
                 ? "You've been waitlisted for " + event.getTitle() + "."
                 : "Your RSVP for " + event.getTitle() + " is confirmed.");
 
+        if (atCapacity) {
+            broadcastWaitlist(eventId);
+        }
+
         return RsvpResponse.from(rsvp);
     }
 
@@ -80,7 +86,14 @@ public class RsvpService {
                         notificationService.notify(next.getUser(), "A spot opened up — you're now going to "
                                 + next.getEvent().getTitle() + "!");
                     });
+            broadcastWaitlist(eventId);
         }
+    }
+
+    /** Pushes the live waitlist (with updated positions) to anyone viewing the event page. */
+    private void broadcastWaitlist(UUID eventId) {
+        List<RsvpResponse> waitlist = listWaitlist(eventId);
+        messagingTemplate.convertAndSend("/topic/events/" + eventId + "/waitlist", waitlist);
     }
 
     public List<RsvpResponse> listRsvps(UUID eventId) {

@@ -70,6 +70,25 @@ public class ClubExpenseService {
         return ClubExpenseResponse.from(expense);
     }
 
+    public void deleteExpense(UUID clubId, UUID expenseId, UserPrincipal principal) {
+        ClubExpense expense = expenseRepository.findById(expenseId)
+                .orElseThrow(() -> ApiException.notFound("Expense not found"));
+
+        if (!expense.getClub().getId().equals(clubId)) {
+            throw ApiException.notFound("Expense not found");
+        }
+
+        Membership membership = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId)
+                .orElseThrow(() -> ApiException.forbidden("Only the Treasurer or Club Admin can delete expenses"));
+
+        if (membership.getStatus() != MembershipStatus.APPROVED
+                || !EXPENSE_LOGGER_POSITIONS.contains(membership.getPosition())) {
+            throw ApiException.forbidden("Only the Treasurer or Club Admin can delete expenses");
+        }
+
+        expenseRepository.delete(expense);
+    }
+
     // NOTE: income (membership/event fees) isn't wired in yet — balance is
     // -totalExpenses for now and will factor in Payment totals once that module lands.
     public ClubLedgerResponse getLedger(UUID clubId) {

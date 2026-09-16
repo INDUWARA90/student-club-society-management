@@ -89,6 +89,33 @@ function ClubDetailPage() {
     }
   }
 
+  async function handleDeleteAnnouncement(announcementId) {
+    try {
+      await api.delete(`/clubs/${clubId}/announcements/${announcementId}`)
+      setAnnouncements((prev) => prev.filter((a) => a.id !== announcementId))
+      showToast('Announcement deleted')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
+  async function handleDeleteExpense(expenseId) {
+    try {
+      await api.delete(`/clubs/${clubId}/expenses/${expenseId}`)
+      setLedger((prev) => {
+        const removed = prev.expenses.find((e) => e.id === expenseId)
+        return {
+          totalExpenses: (Number(prev.totalExpenses) - Number(removed.amount)).toString(),
+          balance: (Number(prev.balance) + Number(removed.amount)).toString(),
+          expenses: prev.expenses.filter((e) => e.id !== expenseId),
+        }
+      })
+      showToast('Expense deleted')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
   async function reviewRequest(membershipId, approve) {
     try {
       await api.post(`/memberships/${membershipId}/${approve ? 'approve' : 'reject'}`)
@@ -230,10 +257,21 @@ function ClubDetailPage() {
           {announcements.map((a) => (
             <div
               key={a.id}
-              className="rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
+              className="flex items-start justify-between gap-3 rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
             >
-              <p className="text-sm text-ink dark:text-ink-dark">{a.content}</p>
-              <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">— {a.authorName}</p>
+              <div>
+                <p className="text-sm text-ink dark:text-ink-dark">{a.content}</p>
+                <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">— {a.authorName}</p>
+              </div>
+              {(a.authorId === user?.id || isPresident) && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAnnouncement(a.id)}
+                  className="shrink-0 text-xs text-danger hover:underline"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -341,7 +379,16 @@ function ClubDetailPage() {
                     {e.expenseDate} — logged by {e.loggedByName}
                   </p>
                 </div>
-                <span className="text-sm font-medium text-danger">-{e.amount}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-danger">-{e.amount}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteExpense(e.id)}
+                    className="text-xs text-danger hover:underline"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>

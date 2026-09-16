@@ -74,4 +74,26 @@ public class ClubAnnouncementService {
         return announcementRepository.findByClubIdOrderByCreatedAtDesc(clubId)
                 .stream().map(ClubAnnouncementResponse::from).toList();
     }
+
+    /** The original author or the Club Admin (President) can remove an announcement. */
+    public void deleteAnnouncement(UUID clubId, UUID announcementId, UserPrincipal principal) {
+        ClubAnnouncement announcement = announcementRepository.findById(announcementId)
+                .orElseThrow(() -> ApiException.notFound("Announcement not found"));
+
+        if (!announcement.getClub().getId().equals(clubId)) {
+            throw ApiException.notFound("Announcement not found");
+        }
+
+        boolean isAuthor = announcement.getAuthor().getId().equals(principal.getId());
+        boolean isPresident = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId)
+                .filter(m -> m.getStatus() == MembershipStatus.APPROVED)
+                .map(m -> m.getPosition() == MembershipPosition.PRESIDENT)
+                .orElse(false);
+
+        if (!isAuthor && !isPresident) {
+            throw ApiException.forbidden("Only the author or the Club Admin can delete this announcement");
+        }
+
+        announcementRepository.delete(announcement);
+    }
 }

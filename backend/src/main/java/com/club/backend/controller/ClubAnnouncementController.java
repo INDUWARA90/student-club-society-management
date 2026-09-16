@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,5 +36,12 @@ public class ClubAnnouncementController {
     @GetMapping
     public ResponseEntity<List<ClubAnnouncementResponse>> listAnnouncements(@PathVariable UUID clubId) {
         return ResponseEntity.ok(announcementService.listAnnouncements(clubId));
+    }
+
+    @DeleteMapping("/{announcementId}")
+    public ResponseEntity<Void> deleteAnnouncement(@PathVariable UUID clubId, @PathVariable UUID announcementId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        announcementService.deleteAnnouncement(clubId, announcementId, principal);
+        return ResponseEntity.ok().build();
     }
 }

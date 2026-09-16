@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,5 +36,12 @@ public class ClubExpenseController {
     @GetMapping("/ledger")
     public ResponseEntity<ClubLedgerResponse> getLedger(@PathVariable UUID clubId) {
         return ResponseEntity.ok(expenseService.getLedger(clubId));
+    }
+
+    @DeleteMapping("/{expenseId}")
+    public ResponseEntity<Void> deleteExpense(@PathVariable UUID clubId, @PathVariable UUID expenseId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        expenseService.deleteExpense(clubId, expenseId, principal);
+        return ResponseEntity.ok().build();
     }
 }

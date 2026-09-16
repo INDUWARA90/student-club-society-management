@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.club.backend.dto.ImportMembersRequest;
+import com.club.backend.dto.ImportMembersResponse;
 import com.club.backend.dto.MembershipResponse;
 import com.club.backend.dto.UpdatePositionRequest;
 import com.club.backend.security.UserPrincipal;
@@ -51,6 +53,12 @@ public class MembershipController {
                 .contentType(org.springframework.http.MediaType.parseMediaType("text/csv"))
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"members.csv\"")
                 .body(membershipService.listMembersCsv(clubId));
+    }
+
+    @PostMapping("/clubs/{clubId}/members/import")
+    public ResponseEntity<ImportMembersResponse> importMembers(@PathVariable UUID clubId,
+            @RequestBody ImportMembersRequest request, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(membershipService.importMembers(clubId, request, principal));
     }
 
     @GetMapping("/clubs/{clubId}/members/pending")

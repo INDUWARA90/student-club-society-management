@@ -131,6 +131,29 @@ function ClubDetailPage() {
     }
   }
 
+  async function handleImportMembers(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const text = await file.text()
+    const emails = text
+      .split(/\r?\n|,/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (emails.length === 0) return
+    try {
+      const { data } = await api.post(`/clubs/${clubId}/members/import`, { emails })
+      const res = await api.get(`/clubs/${clubId}/members`)
+      setMembers(res.data)
+      showToast(
+        `Imported ${data.imported} member(s)` +
+          (data.skipped.length > 0 ? `, skipped ${data.skipped.length}` : ''),
+      )
+    } catch (e2) {
+      showToast(e2.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
   async function reviewRequest(membershipId, approve) {
     try {
       await api.post(`/memberships/${membershipId}/${approve ? 'approve' : 'reject'}`)
@@ -377,24 +400,32 @@ function ClubDetailPage() {
       <section className="mt-8">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Members ({members.length})</h2>
-          {isOfficer && (
-            <button
-              type="button"
-              onClick={() => {
-                api.get(`/clubs/${clubId}/members/csv`, { responseType: 'blob' }).then((res) => {
-                  const url = window.URL.createObjectURL(res.data)
-                  const link = document.createElement('a')
-                  link.href = url
-                  link.download = 'members.csv'
-                  link.click()
-                  window.URL.revokeObjectURL(url)
-                })
-              }}
-              className="text-xs text-brand-600 hover:underline"
-            >
-              Export CSV
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {isPresident && (
+              <label className="cursor-pointer text-xs text-brand-600 hover:underline">
+                Import CSV
+                <input type="file" accept=".csv,text/csv" onChange={handleImportMembers} className="hidden" />
+              </label>
+            )}
+            {isOfficer && (
+              <button
+                type="button"
+                onClick={() => {
+                  api.get(`/clubs/${clubId}/members/csv`, { responseType: 'blob' }).then((res) => {
+                    const url = window.URL.createObjectURL(res.data)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = 'members.csv'
+                    link.click()
+                    window.URL.revokeObjectURL(url)
+                  })
+                }}
+                className="text-xs text-brand-600 hover:underline"
+              >
+                Export CSV
+              </button>
+            )}
+          </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {members.map((m) => (

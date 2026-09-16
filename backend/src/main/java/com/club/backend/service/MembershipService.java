@@ -80,6 +80,51 @@ public class MembershipService {
         membershipRepository.delete(membership);
     }
 
+    /** President-only bulk import: adds each existing user by email as an approved MEMBER. */
+    public com.club.backend.dto.ImportMembersResponse importMembers(UUID clubId,
+            com.club.backend.dto.ImportMembersRequest request, UserPrincipal principal) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> ApiException.notFound("Club not found"));
+
+        Membership requester = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId)
+                .orElseThrow(() -> ApiException.forbidden("Only the Club Admin can import members"));
+
+        if (requester.getStatus() != MembershipStatus.APPROVED || requester.getPosition() != MembershipPosition.PRESIDENT) {
+            throw ApiException.forbidden("Only the Club Admin can import members");
+        }
+
+        int imported = 0;
+        List<String> skipped = new java.util.ArrayList<>();
+
+        for (String rawEmail : request.emails()) {
+            String email = rawEmail == null ? "" : rawEmail.trim().toLowerCase();
+            if (email.isEmpty()) {
+                continue;
+            }
+
+            User user = userRepository.findByEmail(email).orElse(null);
+            if (user == null) {
+                skipped.add(email + " (no account)");
+                continue;
+            }
+            if (membershipRepository.findByUserIdAndClubId(user.getId(), clubId).isPresent()) {
+                skipped.add(email + " (already a member)");
+                continue;
+            }
+
+            Membership membership = Membership.builder()
+                    .user(user)
+                    .club(club)
+                    .position(MembershipPosition.MEMBER)
+                    .status(MembershipStatus.APPROVED)
+                    .build();
+            membershipRepository.save(membership);
+            imported++;
+        }
+
+        return new com.club.backend.dto.ImportMembersResponse(imported, skipped);
+    }
+
     public List<MembershipResponse> listMembers(UUID clubId) {
         return membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.APPROVED)
                 .stream().map(MembershipResponse::from).toList();

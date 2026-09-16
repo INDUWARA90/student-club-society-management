@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +32,12 @@ public class MembershipController {
     public ResponseEntity<MembershipResponse> joinClub(@PathVariable UUID clubId,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(membershipService.joinClub(clubId, principal));
+    }
+
+    @DeleteMapping("/clubs/{clubId}/join")
+    public ResponseEntity<Void> leaveClub(@PathVariable UUID clubId, @AuthenticationPrincipal UserPrincipal principal) {
+        membershipService.leaveClub(clubId, principal);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/clubs/{clubId}/members")

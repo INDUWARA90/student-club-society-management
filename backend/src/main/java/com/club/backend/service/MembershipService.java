@@ -68,6 +68,18 @@ public class MembershipService {
         return MembershipResponse.from(membership);
     }
 
+    /** A student can leave a club they belong to. The President must hand off the role first. */
+    public void leaveClub(UUID clubId, UserPrincipal principal) {
+        Membership membership = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId)
+                .orElseThrow(() -> ApiException.notFound("You are not a member of this club"));
+
+        if (membership.getStatus() == MembershipStatus.APPROVED && membership.getPosition() == MembershipPosition.PRESIDENT) {
+            throw ApiException.badRequest("Transfer the President position to another member before leaving");
+        }
+
+        membershipRepository.delete(membership);
+    }
+
     public List<MembershipResponse> listMembers(UUID clubId) {
         return membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.APPROVED)
                 .stream().map(MembershipResponse::from).toList();

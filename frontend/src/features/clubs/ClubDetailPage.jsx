@@ -47,6 +47,8 @@ function ClubDetailPage() {
   const isOfficer = OFFICER_POSITIONS.includes(myMembership?.position)
   const canManageLedger = LEDGER_POSITIONS.includes(myMembership?.position)
   const isPresident = myMembership?.position === 'PRESIDENT'
+  const effectiveMembershipStatus =
+    joinStatus === 'LEFT' ? null : joinStatus || (myMembership ? 'APPROVED' : pendingRequests.some((p) => p.userId === user?.id) ? 'PENDING' : null)
 
   useEffect(() => {
     if (!canManageLedger) return
@@ -60,6 +62,18 @@ function ClubDetailPage() {
       showToast(result.payload.status === 'APPROVED' ? 'Joined club' : 'Join request sent — awaiting approval')
     } else {
       showToast(result.payload, 'error')
+    }
+  }
+
+  async function handleLeave() {
+    try {
+      await api.delete(`/clubs/${clubId}/join`)
+      setJoinStatus('LEFT')
+      const res = await api.get(`/clubs/${clubId}/members`)
+      setMembers(res.data)
+      showToast('You left the club')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
     }
   }
 
@@ -165,14 +179,25 @@ function ClubDetailPage() {
               Edit club
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleJoin}
-            disabled={joinStatus !== null}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
-          >
-            {joinStatus === 'APPROVED' ? 'Joined' : joinStatus === 'PENDING' ? 'Request pending' : 'Join club'}
-          </button>
+          {effectiveMembershipStatus === 'APPROVED' && !isPresident && (
+            <button
+              type="button"
+              onClick={handleLeave}
+              className="rounded-md border border-danger px-4 py-2 text-sm font-medium text-danger transition-fast hover:bg-danger/10"
+            >
+              Leave club
+            </button>
+          )}
+          {effectiveMembershipStatus !== 'APPROVED' && (
+            <button
+              type="button"
+              onClick={handleJoin}
+              disabled={effectiveMembershipStatus === 'PENDING'}
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
+            >
+              {effectiveMembershipStatus === 'PENDING' ? 'Request pending' : 'Join club'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -198,23 +223,40 @@ function ClubDetailPage() {
               </div>
             ))}
           </div>
-          <a
-            href={`${api.defaults.baseURL}/analytics/clubs/${clubId}/csv`}
-            onClick={(e) => {
-              e.preventDefault()
-              api.get(`/analytics/clubs/${clubId}/csv`, { responseType: 'blob' }).then((res) => {
-                const url = window.URL.createObjectURL(res.data)
-                const link = document.createElement('a')
-                link.href = url
-                link.download = 'club-stats.csv'
-                link.click()
-                window.URL.revokeObjectURL(url)
-              })
-            }}
-            className="mt-2 inline-block text-xs text-brand-600 hover:underline"
-          >
-            Download stats as CSV
-          </a>
+          <div className="mt-2 flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                api.get(`/analytics/clubs/${clubId}/csv`, { responseType: 'blob' }).then((res) => {
+                  const url = window.URL.createObjectURL(res.data)
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = 'club-stats.csv'
+                  link.click()
+                  window.URL.revokeObjectURL(url)
+                })
+              }}
+              className="text-xs text-brand-600 hover:underline"
+            >
+              Download stats as CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                api.get(`/analytics/clubs/${clubId}/pdf`, { responseType: 'blob' }).then((res) => {
+                  const url = window.URL.createObjectURL(res.data)
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = 'club-report.pdf'
+                  link.click()
+                  window.URL.revokeObjectURL(url)
+                })
+              }}
+              className="text-xs text-brand-600 hover:underline"
+            >
+              Download stats as PDF
+            </button>
+          </div>
         </section>
       )}
 

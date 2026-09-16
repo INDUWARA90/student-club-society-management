@@ -24,6 +24,11 @@ function NotificationBell() {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
   }
 
+  async function markAllRead() {
+    await api.post('/notifications/read-all')
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  }
+
   const unreadCount = notifications.filter((n) => !n.read).length
 
   return (
@@ -44,6 +49,15 @@ function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-border bg-surface p-2 shadow-card-hover dark:border-border-dark dark:bg-surface-dark-muted">
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={markAllRead}
+              className="mb-1 block w-full rounded-md p-2 text-left text-xs font-medium text-brand-600 transition-fast hover:bg-surface-muted dark:hover:bg-surface-dark"
+            >
+              Mark all as read
+            </button>
+          )}
           {notifications.length === 0 && (
             <p className="p-3 text-sm text-ink-muted dark:text-ink-dark-muted">No notifications yet.</p>
           )}

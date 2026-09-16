@@ -48,4 +48,11 @@ public class NotificationService {
         notification.setRead(true);
         notificationRepository.save(notification);
     }
+
+    public void markAllRead(UUID userId) {
+        List<Notification> unread = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream().filter(n -> !n.isRead()).toList();
+        unread.forEach(n -> n.setRead(true));
+        notificationRepository.saveAll(unread);
+    }
 }

@@ -1,8 +1,18 @@
 package com.club.backend.service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.stereotype.Service;
 
 import com.club.backend.dto.ClubStatsResponse;
@@ -80,5 +90,61 @@ public class AnalyticsService {
                 + "Events," + stats.eventCount() + "\n"
                 + "RSVPs," + stats.totalRsvps() + "\n"
                 + "Attendance," + stats.totalAttendance() + "\n";
+    }
+
+    public byte[] getUniversityStatsPdf() {
+        UniversityStatsResponse stats = getUniversityStats();
+        Map<String, String> rows = new LinkedHashMap<>();
+        rows.put("Approved Clubs", String.valueOf(stats.totalClubs()));
+        rows.put("Students", String.valueOf(stats.totalStudents()));
+        rows.put("Published Events", String.valueOf(stats.totalEvents()));
+        rows.put("Payments Collected", String.valueOf(stats.totalPaymentsCollected()));
+        rows.put("Pending Club Proposals", String.valueOf(stats.pendingClubProposals()));
+        rows.put("Pending Event Approvals", String.valueOf(stats.pendingEventApprovals()));
+        return renderReportPdf("University-Wide Report", rows);
+    }
+
+    public byte[] getClubStatsPdf(UUID clubId) {
+        ClubStatsResponse stats = getClubStats(clubId);
+        Map<String, String> rows = new LinkedHashMap<>();
+        rows.put("Members", String.valueOf(stats.memberCount()));
+        rows.put("Events", String.valueOf(stats.eventCount()));
+        rows.put("RSVPs", String.valueOf(stats.totalRsvps()));
+        rows.put("Attendance", String.valueOf(stats.totalAttendance()));
+        return renderReportPdf("Club Report", rows);
+    }
+
+    private byte[] renderReportPdf(String title, Map<String, String> rows) {
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+
+            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                PDType1Font titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                PDType1Font bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+                content.beginText();
+                content.setFont(titleFont, 20);
+                content.newLineAtOffset(60, 760);
+                content.showText(title);
+                content.endText();
+
+                float y = 710;
+                for (Map.Entry<String, String> row : rows.entrySet()) {
+                    content.beginText();
+                    content.setFont(bodyFont, 12);
+                    content.newLineAtOffset(60, y);
+                    content.showText(row.getKey() + ": " + row.getValue());
+                    content.endText();
+                    y -= 24;
+                }
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.save(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to generate report PDF", e);
+        }
     }
 }

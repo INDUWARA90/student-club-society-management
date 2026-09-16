@@ -46,10 +46,28 @@ public class AnalyticsController {
         return csvResponse(analyticsService.getClubStatsCsv(clubId), "club-stats.csv");
     }
 
+    @GetMapping("/university/pdf")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'FACULTY_ADVISOR')")
+    public ResponseEntity<byte[]> universityStatsPdf() {
+        return pdfResponse(analyticsService.getUniversityStatsPdf(), "university-report.pdf");
+    }
+
+    @GetMapping("/clubs/{clubId}/pdf")
+    public ResponseEntity<byte[]> clubStatsPdf(@PathVariable UUID clubId) {
+        return pdfResponse(analyticsService.getClubStatsPdf(clubId), "club-report.pdf");
+    }
+
     private ResponseEntity<String> csvResponse(String csv, String filename) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/csv"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .body(csv);
+    }
+
+    private ResponseEntity<byte[]> pdfResponse(byte[] pdf, String filename) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 }

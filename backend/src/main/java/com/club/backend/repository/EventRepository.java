@@ -1,5 +1,6 @@
 package com.club.backend.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,4 +14,6 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     List<Event> findByClubId(UUID clubId);
 
     List<Event> findByApprovalStatus(EventApprovalStatus approvalStatus);
+
+    List<Event> findByEventDateBetween(Instant start, Instant end);
 }

@@ -178,6 +178,9 @@ function EventDetailPage() {
       </div>
       <h1 className="mt-2 text-2xl font-semibold text-ink dark:text-ink-dark">{event.title}</h1>
       <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">{formatDate(event.eventDate)}</p>
+      {event.location && (
+        <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">📍 {event.location}</p>
+      )}
       <p className="mt-3 text-sm text-ink-muted dark:text-ink-dark-muted">{event.description}</p>
 
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}

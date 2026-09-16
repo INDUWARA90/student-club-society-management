@@ -20,6 +20,7 @@ function CreateEventModal({ clubId, event, onClose, onCreated }) {
   const isEdit = Boolean(event)
   const [title, setTitle] = useState(event?.title || '')
   const [description, setDescription] = useState(event?.description || '')
+  const [location, setLocation] = useState(event?.location || '')
   const [eventDate, setEventDate] = useState(toDatetimeLocal(event?.eventDate))
   const [fee, setFee] = useState(event ? String(event.fee) : '0')
   const [capacity, setCapacity] = useState(event?.capacity ? String(event.capacity) : '')
@@ -43,6 +44,7 @@ function CreateEventModal({ clubId, event, onClose, onCreated }) {
     const payload = {
       title,
       description,
+      location,
       bannerB64,
       eventDate: new Date(eventDate).toISOString(),
       fee: Number(fee) || 0,
@@ -85,6 +87,16 @@ function CreateEventModal({ clubId, event, onClose, onCreated }) {
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="event-location">Location</label>
+            <input
+              id="event-location"
+              className={inputClass}
+              placeholder="Room, building, or venue..."
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
             />
           </div>
           <div>

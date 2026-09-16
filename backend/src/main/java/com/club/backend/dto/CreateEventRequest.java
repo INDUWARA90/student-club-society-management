@@ -6,6 +6,7 @@ import java.time.Instant;
 public record CreateEventRequest(
         String title,
         String description,
+        String location,
         String bannerB64,
         Instant eventDate,
         BigDecimal fee,

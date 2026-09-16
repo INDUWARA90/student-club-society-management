@@ -45,6 +45,9 @@ public class Event {
     @Lob
     private String description;
 
+    @Column(length = 255)
+    private String location;
+
     @Lob
     @Column(name = "banner_b64")
     private String bannerB64;

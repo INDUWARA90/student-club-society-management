@@ -70,6 +70,7 @@ public class EventService {
                 .club(club)
                 .title(request.title().trim())
                 .description(request.description())
+                .location(request.location())
                 .bannerB64(request.bannerB64())
                 .eventDate(request.eventDate())
                 .fee(fee)
@@ -106,6 +107,7 @@ public class EventService {
 
         event.setTitle(request.title().trim());
         event.setDescription(request.description());
+        event.setLocation(request.location());
         if (request.bannerB64() != null) {
             event.setBannerB64(request.bannerB64());
         }
@@ -163,7 +165,7 @@ public class EventService {
                 + "DTEND:" + end + "\r\n"
                 + "SUMMARY:" + event.getTitle() + "\r\n"
                 + "DESCRIPTION:" + description + "\r\n"
-                + "LOCATION:" + event.getClub().getName() + "\r\n"
+                + "LOCATION:" + (event.getLocation() != null ? event.getLocation() : event.getClub().getName()) + "\r\n"
                 + "END:VEVENT\r\n"
                 + "END:VCALENDAR\r\n";
     }

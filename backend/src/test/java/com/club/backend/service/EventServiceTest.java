@@ -63,7 +63,7 @@ class EventServiceTest {
 
     @Test
     void createEvent_blankTitle_throws() {
-        CreateEventRequest request = new CreateEventRequest("  ", null, null, Instant.now(), null, null);
+        CreateEventRequest request = new CreateEventRequest("  ", null, null, null, Instant.now(), null, null);
 
         assertThatThrownBy(() -> eventService.createEvent(club.getId(), request, principal))
                 .isInstanceOf(ApiException.class)
@@ -72,7 +72,7 @@ class EventServiceTest {
 
     @Test
     void createEvent_nonOfficer_throws() {
-        CreateEventRequest request = new CreateEventRequest("Tournament", null, null, Instant.now(), null, null);
+        CreateEventRequest request = new CreateEventRequest("Tournament", null, null, null, Instant.now(), null, null);
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
         when(membershipRepository.findByUserIdAndClubId(president.getId(), club.getId())).thenReturn(Optional.empty());
 
@@ -84,7 +84,7 @@ class EventServiceTest {
     @Test
     void createEvent_feeAboveThreshold_requiresFaApproval() {
         CreateEventRequest request = new CreateEventRequest(
-                "Gala", null, null, Instant.now(), new BigDecimal("10000"), null);
+                "Gala", null, null, null, Instant.now(), new BigDecimal("10000"), null);
         Membership officerMembership = Membership.builder().position(MembershipPosition.PRESIDENT)
                 .status(MembershipStatus.APPROVED).build();
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
@@ -101,7 +101,7 @@ class EventServiceTest {
     @Test
     void createEvent_feeBelowThreshold_doesNotRequireApproval() {
         CreateEventRequest request = new CreateEventRequest(
-                "Meetup", null, null, Instant.now(), BigDecimal.ZERO, null);
+                "Meetup", null, null, null, Instant.now(), BigDecimal.ZERO, null);
         Membership officerMembership = Membership.builder().position(MembershipPosition.PRESIDENT)
                 .status(MembershipStatus.APPROVED).build();
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));

@@ -6,6 +6,7 @@ import Breadcrumbs from '../../components/Breadcrumbs'
 import { useToast } from '../../components/ToastProvider'
 import CreateEventModal from '../events/CreateEventModal'
 import { joinClub } from './clubsSlice'
+import AnnouncementComments from './AnnouncementComments'
 import CreateClubModal from './CreateClubModal'
 import LogExpenseModal from './LogExpenseModal'
 
@@ -180,21 +181,40 @@ function ClubDetailPage() {
       </p>
 
       {isOfficer && stats && (
-        <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            ['Members', stats.memberCount],
-            ['Events', stats.eventCount],
-            ['RSVPs', stats.totalRsvps],
-            ['Attendance', stats.totalAttendance],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="rounded-xl border border-border bg-surface p-3 text-center shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
-            >
-              <p className="text-xl font-semibold text-ink dark:text-ink-dark">{value}</p>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">{label}</p>
-            </div>
-          ))}
+        <section className="mt-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ['Members', stats.memberCount],
+              ['Events', stats.eventCount],
+              ['RSVPs', stats.totalRsvps],
+              ['Attendance', stats.totalAttendance],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-border bg-surface p-3 text-center shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
+              >
+                <p className="text-xl font-semibold text-ink dark:text-ink-dark">{value}</p>
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted">{label}</p>
+              </div>
+            ))}
+          </div>
+          <a
+            href={`${api.defaults.baseURL}/analytics/clubs/${clubId}/csv`}
+            onClick={(e) => {
+              e.preventDefault()
+              api.get(`/analytics/clubs/${clubId}/csv`, { responseType: 'blob' }).then((res) => {
+                const url = window.URL.createObjectURL(res.data)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = 'club-stats.csv'
+                link.click()
+                window.URL.revokeObjectURL(url)
+              })
+            }}
+            className="mt-2 inline-block text-xs text-brand-600 hover:underline"
+          >
+            Download stats as CSV
+          </a>
         </section>
       )}
 
@@ -259,9 +279,10 @@ function ClubDetailPage() {
               key={a.id}
               className="flex items-start justify-between gap-3 rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
             >
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-ink dark:text-ink-dark">{a.content}</p>
                 <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">— {a.authorName}</p>
+                <AnnouncementComments clubId={clubId} announcementId={a.id} isPresident={isPresident} />
               </div>
               {(a.authorId === user?.id || isPresident) && (
                 <button

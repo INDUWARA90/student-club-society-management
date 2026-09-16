@@ -61,4 +61,24 @@ public class AnalyticsService {
                 totalClubs, totalStudents, totalEvents, totalPaymentsCollected,
                 pendingClubProposals, pendingEventApprovals);
     }
+
+    public String getUniversityStatsCsv() {
+        UniversityStatsResponse stats = getUniversityStats();
+        return "Metric,Value\n"
+                + "Approved Clubs," + stats.totalClubs() + "\n"
+                + "Students," + stats.totalStudents() + "\n"
+                + "Published Events," + stats.totalEvents() + "\n"
+                + "Payments Collected," + stats.totalPaymentsCollected() + "\n"
+                + "Pending Club Proposals," + stats.pendingClubProposals() + "\n"
+                + "Pending Event Approvals," + stats.pendingEventApprovals() + "\n";
+    }
+
+    public String getClubStatsCsv(UUID clubId) {
+        ClubStatsResponse stats = getClubStats(clubId);
+        return "Metric,Value\n"
+                + "Members," + stats.memberCount() + "\n"
+                + "Events," + stats.eventCount() + "\n"
+                + "RSVPs," + stats.totalRsvps() + "\n"
+                + "Attendance," + stats.totalAttendance() + "\n";
+    }
 }

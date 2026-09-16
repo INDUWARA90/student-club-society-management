@@ -2,6 +2,8 @@ package com.club.backend.controller;
 
 import java.util.UUID;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,5 +33,23 @@ public class AnalyticsController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'FACULTY_ADVISOR')")
     public ResponseEntity<UniversityStatsResponse> universityStats() {
         return ResponseEntity.ok(analyticsService.getUniversityStats());
+    }
+
+    @GetMapping("/university/csv")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'FACULTY_ADVISOR')")
+    public ResponseEntity<String> universityStatsCsv() {
+        return csvResponse(analyticsService.getUniversityStatsCsv(), "university-stats.csv");
+    }
+
+    @GetMapping("/clubs/{clubId}/csv")
+    public ResponseEntity<String> clubStatsCsv(@PathVariable UUID clubId) {
+        return csvResponse(analyticsService.getClubStatsCsv(clubId), "club-stats.csv");
+    }
+
+    private ResponseEntity<String> csvResponse(String csv, String filename) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(csv);
     }
 }

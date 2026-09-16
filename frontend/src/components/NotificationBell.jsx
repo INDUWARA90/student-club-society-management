@@ -1,3 +1,4 @@
+import { Bell } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
 import api from '../api/axios'
@@ -50,12 +51,12 @@ function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded-full p-2 text-ink transition-fast hover:bg-surface-muted dark:text-ink-dark dark:hover:bg-surface-dark"
+        className="relative rounded-full p-2 text-ink-muted transition-fast hover:bg-surface-muted hover:text-ink dark:text-ink-dark-muted dark:hover:bg-surface-dark dark:hover:text-ink-dark"
         aria-label="Notifications"
       >
-        🔔
+        <Bell className="h-[18px] w-[18px]" />
         {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-medium text-white">
+          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-medium text-white ring-2 ring-surface dark:ring-surface-dark-muted">
             {unreadCount}
           </span>
         )}

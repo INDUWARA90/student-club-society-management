@@ -3,6 +3,8 @@ package com.club.backend.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -49,6 +51,15 @@ public class EventController {
     public ResponseEntity<EventResponse> updateEvent(@PathVariable UUID eventId, @RequestBody CreateEventRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(eventService.updateEvent(eventId, request, principal));
+    }
+
+    @GetMapping("/events/{eventId}/ics")
+    public ResponseEntity<String> downloadIcs(@PathVariable UUID eventId) {
+        String ics = eventService.generateIcs(eventId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/calendar"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"event.ics\"")
+                .body(ics);
     }
 
     @GetMapping("/events/pending")

@@ -1,6 +1,8 @@
 package com.club.backend.service;
 
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -132,6 +134,34 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> ApiException.notFound("Event not found"));
         return EventResponse.from(event);
+    }
+
+    private static final DateTimeFormatter ICS_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
+            .withZone(ZoneOffset.UTC);
+
+    /** A minimal RFC 5545 .ics file for the event, for adding to Google/Outlook calendars. */
+    public String generateIcs(UUID eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> ApiException.notFound("Event not found"));
+
+        String start = ICS_DATE_FORMAT.format(event.getEventDate());
+        String end = ICS_DATE_FORMAT.format(event.getEventDate().plusSeconds(3600));
+        String now = ICS_DATE_FORMAT.format(java.time.Instant.now());
+        String description = event.getDescription() != null ? event.getDescription().replace("\n", "\\n") : "";
+
+        return "BEGIN:VCALENDAR\r\n"
+                + "VERSION:2.0\r\n"
+                + "PRODID:-//Club and Society Management//EN\r\n"
+                + "BEGIN:VEVENT\r\n"
+                + "UID:" + event.getId() + "@club-society-management\r\n"
+                + "DTSTAMP:" + now + "\r\n"
+                + "DTSTART:" + start + "\r\n"
+                + "DTEND:" + end + "\r\n"
+                + "SUMMARY:" + event.getTitle() + "\r\n"
+                + "DESCRIPTION:" + description + "\r\n"
+                + "LOCATION:" + event.getClub().getName() + "\r\n"
+                + "END:VEVENT\r\n"
+                + "END:VCALENDAR\r\n";
     }
 
     public EventResponse reviewEvent(UUID eventId, boolean approve) {

@@ -106,6 +106,16 @@ function EventDetailPage() {
     }
   }
 
+  async function handleAddToCalendar() {
+    const res = await api.get(`/events/${eventId}/ics`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(res.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${event.title}.ics`
+    link.click()
+    window.URL.revokeObjectURL(url)
+  }
+
   if (!event) {
     return (
       <div className="mx-auto max-w-3xl p-4 md:p-8">
@@ -174,6 +184,15 @@ function EventDetailPage() {
             className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
           >
             QR check-in
+          </button>
+        )}
+        {myRsvpStatus && myRsvpStatus !== 'CANCELLED' && (
+          <button
+            type="button"
+            onClick={handleAddToCalendar}
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+          >
+            Add to calendar
           </button>
         )}
       </div>

@@ -30,6 +30,7 @@ public class ClubService {
     private final ClubRepository clubRepository;
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     public ClubResponse createClub(CreateClubRequest request, UserPrincipal principal) {
         if (isBlank(request.name())) {
@@ -99,7 +100,7 @@ public class ClubService {
         return ClubResponse.from(club);
     }
 
-    public ClubResponse approveClub(UUID clubId, boolean approve) {
+    public ClubResponse approveClub(UUID clubId, boolean approve, UserPrincipal principal) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> ApiException.notFound("Club not found"));
 
@@ -109,6 +110,11 @@ public class ClubService {
 
         club.setStatus(approve ? ClubStatus.APPROVED : ClubStatus.REJECTED);
         club = clubRepository.save(club);
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+        auditLogService.log(actor, approve ? "APPROVE_CLUB" : "REJECT_CLUB", "CLUB", club.getId(), club.getName());
+
         return ClubResponse.from(club);
     }
 

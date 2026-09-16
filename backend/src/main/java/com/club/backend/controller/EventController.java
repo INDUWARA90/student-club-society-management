@@ -70,13 +70,13 @@ public class EventController {
 
     @PostMapping("/events/{eventId}/approve")
     @PreAuthorize("hasRole('FACULTY_ADVISOR')")
-    public ResponseEntity<EventResponse> approveEvent(@PathVariable UUID eventId) {
-        return ResponseEntity.ok(eventService.reviewEvent(eventId, true));
+    public ResponseEntity<EventResponse> approveEvent(@PathVariable UUID eventId, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventService.reviewEvent(eventId, true, principal));
     }
 
     @PostMapping("/events/{eventId}/reject")
     @PreAuthorize("hasRole('FACULTY_ADVISOR')")
-    public ResponseEntity<EventResponse> rejectEvent(@PathVariable UUID eventId) {
-        return ResponseEntity.ok(eventService.reviewEvent(eventId, false));
+    public ResponseEntity<EventResponse> rejectEvent(@PathVariable UUID eventId, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventService.reviewEvent(eventId, false, principal));
     }
 }

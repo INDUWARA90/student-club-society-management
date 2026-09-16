@@ -42,6 +42,10 @@ class EventServiceTest {
     private ClubRepository clubRepository;
     @Mock
     private MembershipRepository membershipRepository;
+    @Mock
+    private com.club.backend.repository.UserRepository userRepository;
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private EventService eventService;
@@ -117,7 +121,7 @@ class EventServiceTest {
                 .approvalStatus(EventApprovalStatus.APPROVED).build();
         when(eventRepository.findById(event.getId())).thenReturn(Optional.of(event));
 
-        assertThatThrownBy(() -> eventService.reviewEvent(event.getId(), true))
+        assertThatThrownBy(() -> eventService.reviewEvent(event.getId(), true, principal))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("pending");
     }

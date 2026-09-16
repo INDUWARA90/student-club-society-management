@@ -113,6 +113,12 @@ function DashboardPage() {
             >
               University-wide analytics
             </Link>
+            <Link
+              to="/admin/audit-log"
+              className="rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-card transition-fast hover:-translate-y-0.5 dark:bg-surface-dark-muted dark:text-ink-dark"
+            >
+              Audit log
+            </Link>
           </div>
         </section>
       )}

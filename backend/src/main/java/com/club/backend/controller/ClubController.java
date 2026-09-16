@@ -65,13 +65,13 @@ public class ClubController {
 
     @PostMapping("/{clubId}/approve")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<ClubResponse> approveClub(@PathVariable UUID clubId) {
-        return ResponseEntity.ok(clubService.approveClub(clubId, true));
+    public ResponseEntity<ClubResponse> approveClub(@PathVariable UUID clubId, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(clubService.approveClub(clubId, true, principal));
     }
 
     @PostMapping("/{clubId}/reject")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<ClubResponse> rejectClub(@PathVariable UUID clubId) {
-        return ResponseEntity.ok(clubService.approveClub(clubId, false));
+    public ResponseEntity<ClubResponse> rejectClub(@PathVariable UUID clubId, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(clubService.approveClub(clubId, false, principal));
     }
 }

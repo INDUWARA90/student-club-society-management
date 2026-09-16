@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/AppLayout'
+import AuditLogPage from './features/admin/AuditLogPage'
 import UniversityStatsPage from './features/analytics/UniversityStatsPage'
 import ForgotPasswordPage from './features/auth/ForgotPasswordPage'
 import LoginPage from './features/auth/LoginPage'
@@ -44,6 +45,7 @@ function App() {
           <Route path="/advisor/clubs" element={<AllClubsOverviewPage />} />
           <Route path="/analytics" element={<UniversityStatsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/admin/audit-log" element={<AuditLogPage />} />
         </Route>
       </Route>
 

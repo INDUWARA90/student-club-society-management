@@ -39,6 +39,8 @@ class ClubServiceTest {
     private MembershipRepository membershipRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private ClubService clubService;
@@ -46,12 +48,14 @@ class ClubServiceTest {
     private User superAdmin;
     private User student;
     private UserPrincipal studentPrincipal;
+    private UserPrincipal superAdminPrincipal;
 
     @BeforeEach
     void setUp() {
         superAdmin = User.builder().id(UUID.randomUUID()).name("Admin").email("admin@example.com").role(Role.SUPER_ADMIN).build();
         student = User.builder().id(UUID.randomUUID()).name("Stu").email("stu@example.com").role(Role.STUDENT).build();
         studentPrincipal = new UserPrincipal(student);
+        superAdminPrincipal = new UserPrincipal(superAdmin);
     }
 
     @Test
@@ -101,7 +105,7 @@ class ClubServiceTest {
         Club club = Club.builder().id(UUID.randomUUID()).status(ClubStatus.APPROVED).createdBy(student).build();
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
 
-        assertThatThrownBy(() -> clubService.approveClub(club.getId(), true))
+        assertThatThrownBy(() -> clubService.approveClub(club.getId(), true, superAdminPrincipal))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("pending");
     }
@@ -111,8 +115,9 @@ class ClubServiceTest {
         Club club = Club.builder().id(UUID.randomUUID()).status(ClubStatus.PENDING).createdBy(student).build();
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
         when(clubRepository.save(any(Club.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(superAdmin.getId())).thenReturn(Optional.of(superAdmin));
 
-        ClubResponse response = clubService.approveClub(club.getId(), true);
+        ClubResponse response = clubService.approveClub(club.getId(), true, superAdminPrincipal);
 
         assertThat(response.status()).isEqualTo(ClubStatus.APPROVED);
     }

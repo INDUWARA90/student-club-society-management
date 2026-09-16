@@ -18,9 +18,11 @@ import com.club.backend.entity.EventApprovalStatus;
 import com.club.backend.entity.Membership;
 import com.club.backend.entity.MembershipPosition;
 import com.club.backend.entity.MembershipStatus;
+import com.club.backend.entity.User;
 import com.club.backend.repository.ClubRepository;
 import com.club.backend.repository.EventRepository;
 import com.club.backend.repository.MembershipRepository;
+import com.club.backend.repository.UserRepository;
 import com.club.backend.security.UserPrincipal;
 
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,8 @@ public class EventService {
     private final EventRepository eventRepository;
     private final ClubRepository clubRepository;
     private final MembershipRepository membershipRepository;
+    private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     public EventResponse createEvent(UUID clubId, CreateEventRequest request, UserPrincipal principal) {
         if (request.title() == null || request.title().trim().isEmpty()) {
@@ -164,7 +168,7 @@ public class EventService {
                 + "END:VCALENDAR\r\n";
     }
 
-    public EventResponse reviewEvent(UUID eventId, boolean approve) {
+    public EventResponse reviewEvent(UUID eventId, boolean approve, UserPrincipal principal) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> ApiException.notFound("Event not found"));
 
@@ -174,6 +178,11 @@ public class EventService {
 
         event.setApprovalStatus(approve ? EventApprovalStatus.APPROVED : EventApprovalStatus.REJECTED);
         event = eventRepository.save(event);
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+        auditLogService.log(actor, approve ? "APPROVE_EVENT" : "REJECT_EVENT", "EVENT", event.getId(), event.getTitle());
+
         return EventResponse.from(event);
     }
 }

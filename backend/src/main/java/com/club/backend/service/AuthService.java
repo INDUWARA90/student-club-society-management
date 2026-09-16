@@ -125,6 +125,14 @@ public class AuthService {
         return UserResponse.from(user);
     }
 
+    public UserResponse updateProfileImage(UserPrincipal principal, String profileImageB64) {
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+        user.setProfileImageB64(profileImageB64);
+        user = userRepository.save(user);
+        return UserResponse.from(user);
+    }
+
     private void validateRegister(RegisterRequest request) {
         if (isBlank(request.name())) {
             throw ApiException.badRequest("Name is required");

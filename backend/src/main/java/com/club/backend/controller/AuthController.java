@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,6 +14,7 @@ import com.club.backend.dto.ForgotPasswordRequest;
 import com.club.backend.dto.LoginRequest;
 import com.club.backend.dto.RegisterRequest;
 import com.club.backend.dto.ResetPasswordRequest;
+import com.club.backend.dto.UpdateProfileImageRequest;
 import com.club.backend.dto.UserResponse;
 import com.club.backend.security.UserPrincipal;
 import com.club.backend.service.AuthService;
@@ -51,5 +53,11 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(authService.currentUser(principal));
+    }
+
+    @PutMapping("/me/profile-image")
+    public ResponseEntity<UserResponse> updateProfileImage(@RequestBody UpdateProfileImageRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(authService.updateProfileImage(principal, request.profileImageB64()));
     }
 }

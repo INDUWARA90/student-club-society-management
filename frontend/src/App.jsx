@@ -14,6 +14,7 @@ import EventDetailPage from './features/events/EventDetailPage'
 import EventsPage from './features/events/EventsPage'
 import PendingEventsPage from './features/events/PendingEventsPage'
 import DashboardPage from './pages/DashboardPage'
+import ProfilePage from './pages/ProfilePage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
           <Route path="/events/:eventId" element={<EventDetailPage />} />
           <Route path="/advisor/pending-events" element={<PendingEventsPage />} />
           <Route path="/analytics" element={<UniversityStatsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 

@@ -10,6 +10,7 @@ import LogExpenseModal from './LogExpenseModal'
 
 const OFFICER_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
 const LEDGER_POSITIONS = ['PRESIDENT', 'TREASURER']
+const ALL_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER', 'MEMBER']
 
 function ClubDetailPage() {
   const { clubId } = useParams()
@@ -40,6 +41,7 @@ function ClubDetailPage() {
   const myMembership = members.find((m) => m.userId === user?.id)
   const isOfficer = OFFICER_POSITIONS.includes(myMembership?.position)
   const canManageLedger = LEDGER_POSITIONS.includes(myMembership?.position)
+  const isPresident = myMembership?.position === 'PRESIDENT'
 
   useEffect(() => {
     if (!canManageLedger) return
@@ -53,6 +55,17 @@ function ClubDetailPage() {
       showToast(result.payload.status === 'APPROVED' ? 'Joined club' : 'Join request sent — awaiting approval')
     } else {
       showToast(result.payload, 'error')
+    }
+  }
+
+  async function handleAssignPosition(membershipId, position) {
+    try {
+      await api.put(`/memberships/${membershipId}/position`, { position })
+      const res = await api.get(`/clubs/${clubId}/members`)
+      setMembers(res.data)
+      showToast('Position updated')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
     }
   }
 
@@ -220,9 +233,23 @@ function ClubDetailPage() {
               className="flex items-center justify-between rounded-xl border border-border bg-surface p-3 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
             >
               <span className="text-sm text-ink dark:text-ink-dark">{m.userName}</span>
-              <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted dark:bg-surface-dark dark:text-ink-dark-muted">
-                {m.position}
-              </span>
+              {isPresident ? (
+                <select
+                  value={m.position}
+                  onChange={(e) => handleAssignPosition(m.id, e.target.value)}
+                  className="rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted outline-none dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark-muted"
+                >
+                  {ALL_POSITIONS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted dark:bg-surface-dark dark:text-ink-dark-muted">
+                  {m.position}
+                </span>
+              )}
             </div>
           ))}
         </div>

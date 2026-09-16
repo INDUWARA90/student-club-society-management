@@ -57,6 +57,12 @@ public class ClubController {
         return ResponseEntity.ok(clubService.listPendingClubs());
     }
 
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'FACULTY_ADVISOR')")
+    public ResponseEntity<List<ClubResponse>> listAllClubs() {
+        return ResponseEntity.ok(clubService.listAllClubs());
+    }
+
     @PostMapping("/{clubId}/approve")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ClubResponse> approveClub(@PathVariable UUID clubId) {

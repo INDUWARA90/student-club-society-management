@@ -7,6 +7,7 @@ import ForgotPasswordPage from './features/auth/ForgotPasswordPage'
 import LoginPage from './features/auth/LoginPage'
 import RegisterPage from './features/auth/RegisterPage'
 import ResetPasswordPage from './features/auth/ResetPasswordPage'
+import AllClubsOverviewPage from './features/clubs/AllClubsOverviewPage'
 import ClubDetailPage from './features/clubs/ClubDetailPage'
 import ClubsPage from './features/clubs/ClubsPage'
 import PendingClubsPage from './features/clubs/PendingClubsPage'
@@ -40,6 +41,7 @@ function App() {
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/:eventId" element={<EventDetailPage />} />
           <Route path="/advisor/pending-events" element={<PendingEventsPage />} />
+          <Route path="/advisor/clubs" element={<AllClubsOverviewPage />} />
           <Route path="/analytics" element={<UniversityStatsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>

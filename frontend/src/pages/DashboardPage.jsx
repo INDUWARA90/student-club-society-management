@@ -128,6 +128,12 @@ function DashboardPage() {
               Review pending events
             </Link>
             <Link
+              to="/advisor/clubs"
+              className="rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-card transition-fast hover:-translate-y-0.5 dark:bg-surface-dark-muted dark:text-ink-dark"
+            >
+              All clubs (read-only)
+            </Link>
+            <Link
               to="/analytics"
               className="rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-card transition-fast hover:-translate-y-0.5 dark:bg-surface-dark-muted dark:text-ink-dark"
             >

@@ -125,6 +125,11 @@ public class ClubService {
         return clubRepository.findByStatus(ClubStatus.PENDING).stream().map(ClubResponse::from).toList();
     }
 
+    /** University-wide read-only oversight (Super Admin, Faculty Advisor) — every club regardless of status. */
+    public List<ClubResponse> listAllClubs() {
+        return clubRepository.findAll().stream().map(ClubResponse::from).toList();
+    }
+
     public ClubResponse getClub(UUID clubId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> ApiException.notFound("Club not found"));

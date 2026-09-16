@@ -73,6 +73,25 @@ public class MembershipService {
                 .stream().map(MembershipResponse::from).toList();
     }
 
+    public String listMembersCsv(UUID clubId) {
+        List<Membership> members = membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.APPROVED);
+        StringBuilder csv = new StringBuilder("Name,Email,Position,Joined At\n");
+        for (Membership m : members) {
+            csv.append(escapeCsv(m.getUser().getName())).append(',')
+                    .append(escapeCsv(m.getUser().getEmail())).append(',')
+                    .append(m.getPosition()).append(',')
+                    .append(m.getJoinedAt()).append('\n');
+        }
+        return csv.toString();
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.contains(",") ? "\"" + value.replace("\"", "\"\"") + "\"" : value;
+    }
+
     public List<MembershipResponse> listPendingRequests(UUID clubId) {
         return membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.PENDING)
                 .stream().map(MembershipResponse::from).toList();

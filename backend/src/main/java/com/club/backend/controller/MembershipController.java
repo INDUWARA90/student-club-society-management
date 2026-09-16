@@ -38,6 +38,14 @@ public class MembershipController {
         return ResponseEntity.ok(membershipService.listMembers(clubId));
     }
 
+    @GetMapping("/clubs/{clubId}/members/csv")
+    public ResponseEntity<String> listMembersCsv(@PathVariable UUID clubId) {
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType("text/csv"))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"members.csv\"")
+                .body(membershipService.listMembersCsv(clubId));
+    }
+
     @GetMapping("/clubs/{clubId}/members/pending")
     public ResponseEntity<List<MembershipResponse>> listPendingRequests(@PathVariable UUID clubId) {
         return ResponseEntity.ok(membershipService.listPendingRequests(clubId));

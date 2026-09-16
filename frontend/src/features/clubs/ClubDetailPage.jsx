@@ -333,7 +333,27 @@ function ClubDetailPage() {
       )}
 
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Members ({members.length})</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Members ({members.length})</h2>
+          {isOfficer && (
+            <button
+              type="button"
+              onClick={() => {
+                api.get(`/clubs/${clubId}/members/csv`, { responseType: 'blob' }).then((res) => {
+                  const url = window.URL.createObjectURL(res.data)
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = 'members.csv'
+                  link.click()
+                  window.URL.revokeObjectURL(url)
+                })
+              }}
+              className="text-xs text-brand-600 hover:underline"
+            >
+              Export CSV
+            </button>
+          )}
+        </div>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {members.map((m) => (
             <div

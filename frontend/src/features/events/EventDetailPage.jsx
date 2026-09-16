@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useParams } from 'react-router-dom'
 import api from '../../api/axios'
+import { subscribeToTopic } from '../../api/websocket'
 import Breadcrumbs from '../../components/Breadcrumbs'
 import { useToast } from '../../components/ToastProvider'
 import CreateEventModal from './CreateEventModal'
@@ -30,9 +31,17 @@ function EventDetailPage() {
   const [myRating, setMyRating] = useState(0)
   const [feedbackComment, setFeedbackComment] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const [qrCodeUrl, setQrCodeUrl] = useState(null)
 
   useEffect(() => {
     load()
+  }, [eventId])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToTopic(`/topic/events/${eventId}/waitlist`, (updatedWaitlist) => {
+      setWaitlist(updatedWaitlist)
+    })
+    return unsubscribe
   }, [eventId])
 
   async function load() {
@@ -130,6 +139,20 @@ function EventDetailPage() {
     }
   }
 
+  async function handleShowQrCode() {
+    try {
+      const res = await api.get(`/events/${eventId}/qr-code`, { responseType: 'blob' })
+      setQrCodeUrl(window.URL.createObjectURL(res.data))
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
+  function closeQrCode() {
+    if (qrCodeUrl) window.URL.revokeObjectURL(qrCodeUrl)
+    setQrCodeUrl(null)
+  }
+
   async function handleAddToCalendar() {
     const res = await api.get(`/events/${eventId}/ics`, { responseType: 'blob' })
     const url = window.URL.createObjectURL(res.data)
@@ -176,6 +199,17 @@ function EventDetailPage() {
           </button>
         )}
       </div>
+      {isOfficer && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={handleShowQrCode}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+          >
+            Show check-in QR code
+          </button>
+        </div>
+      )}
       <h1 className="mt-2 text-2xl font-semibold text-ink dark:text-ink-dark">{event.title}</h1>
       <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">{formatDate(event.eventDate)}</p>
       {event.location && (
@@ -331,6 +365,28 @@ function EventDetailPage() {
           onClose={() => setShowEditEvent(false)}
           onCreated={() => load()}
         />
+      )}
+
+      {qrCodeUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeQrCode}>
+          <div
+            className="rounded-xl bg-surface p-6 text-center shadow-card-hover dark:bg-surface-dark-muted"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-ink dark:text-ink-dark">Check-in QR code</h3>
+            <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">
+              Attendees scan this to check themselves in
+            </p>
+            <img src={qrCodeUrl} alt="Event check-in QR code" className="mx-auto mt-4 h-64 w-64" />
+            <button
+              type="button"
+              onClick={closeQrCode}
+              className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

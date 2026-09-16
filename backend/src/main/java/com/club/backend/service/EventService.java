@@ -7,6 +7,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+
+import javax.imageio.ImageIO;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.club.backend.config.ApiException;
@@ -43,6 +49,9 @@ public class EventService {
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     public EventResponse createEvent(UUID clubId, CreateEventRequest request, UserPrincipal principal) {
         if (request.title() == null || request.title().trim().isEmpty()) {
@@ -168,6 +177,27 @@ public class EventService {
                 + "LOCATION:" + (event.getLocation() != null ? event.getLocation() : event.getClub().getName()) + "\r\n"
                 + "END:VEVENT\r\n"
                 + "END:VCALENDAR\r\n";
+    }
+
+    /** A scannable QR code (PNG) encoding a link that self-check-ins whoever scans it. */
+    public byte[] generateQrCode(UUID eventId) {
+        if (!eventRepository.existsById(eventId)) {
+            throw ApiException.notFound("Event not found");
+        }
+
+        String checkInUrl = frontendUrl + "/checkin/" + eventId;
+        try {
+            com.google.zxing.qrcode.QRCodeWriter writer = new com.google.zxing.qrcode.QRCodeWriter();
+            com.google.zxing.common.BitMatrix matrix = writer.encode(
+                    checkInUrl, com.google.zxing.BarcodeFormat.QR_CODE, 400, 400);
+            java.awt.image.BufferedImage image = com.google.zxing.client.j2se.MatrixToImageWriter.toBufferedImage(matrix);
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", out);
+            return out.toByteArray();
+        } catch (com.google.zxing.WriterException | IOException e) {
+            throw new RuntimeException("Failed to generate QR code", e);
+        }
     }
 
     public EventResponse reviewEvent(UUID eventId, boolean approve, UserPrincipal principal) {

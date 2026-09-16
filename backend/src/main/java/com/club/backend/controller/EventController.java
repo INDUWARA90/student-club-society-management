@@ -62,6 +62,13 @@ public class EventController {
                 .body(ics);
     }
 
+    @GetMapping("/events/{eventId}/qr-code")
+    public ResponseEntity<byte[]> qrCode(@PathVariable UUID eventId) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .body(eventService.generateQrCode(eventId));
+    }
+
     @GetMapping("/events/pending")
     @PreAuthorize("hasRole('FACULTY_ADVISOR')")
     public ResponseEntity<List<EventResponse>> listPendingApprovals() {

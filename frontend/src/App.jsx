@@ -8,15 +8,18 @@ import ForgotPasswordPage from './features/auth/ForgotPasswordPage'
 import LoginPage from './features/auth/LoginPage'
 import RegisterPage from './features/auth/RegisterPage'
 import ResetPasswordPage from './features/auth/ResetPasswordPage'
+import VerifyEmailPage from './features/auth/VerifyEmailPage'
 import AllClubsOverviewPage from './features/clubs/AllClubsOverviewPage'
 import ClubDetailPage from './features/clubs/ClubDetailPage'
 import ClubsPage from './features/clubs/ClubsPage'
 import PendingClubsPage from './features/clubs/PendingClubsPage'
+import EventCheckInPage from './features/events/EventCheckInPage'
 import EventDetailPage from './features/events/EventDetailPage'
 import EventsPage from './features/events/EventsPage'
 import PendingEventsPage from './features/events/PendingEventsPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
+import SearchPage from './pages/SearchPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
 function App() {
@@ -32,10 +35,13 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       <Route element={<ProtectedRoute />}>
+        <Route path="/checkin/:eventId" element={<EventCheckInPage />} />
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/clubs" element={<ClubsPage />} />
           <Route path="/clubs/:clubId" element={<ClubDetailPage />} />
           <Route path="/admin/pending-clubs" element={<PendingClubsPage />} />

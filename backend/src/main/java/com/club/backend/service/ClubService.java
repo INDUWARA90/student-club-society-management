@@ -67,6 +67,38 @@ public class ClubService {
         return ClubResponse.from(club);
     }
 
+    public ClubResponse updateClub(UUID clubId, CreateClubRequest request, UserPrincipal principal) {
+        if (isBlank(request.name())) {
+            throw ApiException.badRequest("Club name is required");
+        }
+        if (isBlank(request.category())) {
+            throw ApiException.badRequest("Club category is required");
+        }
+
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> ApiException.notFound("Club not found"));
+
+        Membership membership = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId)
+                .orElseThrow(() -> ApiException.forbidden("Only the Club Admin can edit the club"));
+
+        if (membership.getStatus() != MembershipStatus.APPROVED || membership.getPosition() != MembershipPosition.PRESIDENT) {
+            throw ApiException.forbidden("Only the Club Admin can edit the club");
+        }
+
+        club.setName(request.name().trim());
+        club.setDescription(request.description());
+        club.setCategory(request.category().trim());
+        if (request.joinPolicy() != null) {
+            club.setJoinPolicy(request.joinPolicy());
+        }
+        if (request.logoB64() != null) {
+            club.setLogoB64(request.logoB64());
+        }
+        club = clubRepository.save(club);
+
+        return ClubResponse.from(club);
+    }
+
     public ClubResponse approveClub(UUID clubId, boolean approve) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> ApiException.notFound("Club not found"));

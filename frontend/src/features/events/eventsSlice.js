@@ -26,6 +26,18 @@ export const createEvent = createAsyncThunk(
   },
 )
 
+export const updateEvent = createAsyncThunk(
+  'events/updateEvent',
+  async ({ eventId, payload }, { rejectWithValue }) => {
+    try {
+      const { data } = await api.put(`/events/${eventId}`, payload)
+      return data
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
 const eventsSlice = createSlice({
   name: 'events',
   initialState: {

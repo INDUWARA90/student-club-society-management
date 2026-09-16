@@ -76,6 +76,44 @@ public class EventService {
         return EventResponse.from(event);
     }
 
+    public EventResponse updateEvent(UUID eventId, CreateEventRequest request, UserPrincipal principal) {
+        if (request.title() == null || request.title().trim().isEmpty()) {
+            throw ApiException.badRequest("Event title is required");
+        }
+        if (request.eventDate() == null) {
+            throw ApiException.badRequest("Event date is required");
+        }
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> ApiException.notFound("Event not found"));
+
+        Membership membership = membershipRepository.findByUserIdAndClubId(principal.getId(), event.getClub().getId())
+                .orElseThrow(() -> ApiException.forbidden("Only club officers can edit events"));
+
+        if (membership.getStatus() != MembershipStatus.APPROVED
+                || !EVENT_CREATOR_POSITIONS.contains(membership.getPosition())) {
+            throw ApiException.forbidden("Only club officers can edit events");
+        }
+
+        BigDecimal fee = request.fee() != null ? request.fee() : BigDecimal.ZERO;
+        boolean requiresFaApproval = fee.compareTo(FA_APPROVAL_FEE_THRESHOLD) > 0;
+
+        event.setTitle(request.title().trim());
+        event.setDescription(request.description());
+        if (request.bannerB64() != null) {
+            event.setBannerB64(request.bannerB64());
+        }
+        event.setEventDate(request.eventDate());
+        event.setFee(fee);
+        event.setCapacity(request.capacity());
+        event.setRequiresFaApproval(requiresFaApproval);
+        // Fee crossing the threshold in either direction resets approval, requiring a fresh FA sign-off.
+        event.setApprovalStatus(requiresFaApproval ? EventApprovalStatus.PENDING : EventApprovalStatus.NOT_REQUIRED);
+        event = eventRepository.save(event);
+
+        return EventResponse.from(event);
+    }
+
     public List<EventResponse> listPublishedEvents(UUID clubId) {
         List<Event> events = clubId != null ? eventRepository.findByClubId(clubId) : eventRepository.findAll();
         return events.stream()

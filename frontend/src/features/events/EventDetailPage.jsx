@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 import api from '../../api/axios'
 import Breadcrumbs from '../../components/Breadcrumbs'
 import { useToast } from '../../components/ToastProvider'
+import CreateEventModal from './CreateEventModal'
 
 const OFFICER_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
 
@@ -23,6 +24,7 @@ function EventDetailPage() {
   const [myPosition, setMyPosition] = useState(null)
   const [myRsvpStatus, setMyRsvpStatus] = useState(null)
   const [error, setError] = useState(null)
+  const [showEditEvent, setShowEditEvent] = useState(false)
 
   useEffect(() => {
     load()
@@ -126,9 +128,20 @@ function EventDetailPage() {
           { label: event.title },
         ]}
       />
-      <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
-        {event.clubName}
-      </span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
+          {event.clubName}
+        </span>
+        {isOfficer && (
+          <button
+            type="button"
+            onClick={() => setShowEditEvent(true)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+          >
+            Edit event
+          </button>
+        )}
+      </div>
       <h1 className="mt-2 text-2xl font-semibold text-ink dark:text-ink-dark">{event.title}</h1>
       <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">{formatDate(event.eventDate)}</p>
       <p className="mt-3 text-sm text-ink-muted dark:text-ink-dark-muted">{event.description}</p>
@@ -213,6 +226,14 @@ function EventDetailPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {showEditEvent && (
+        <CreateEventModal
+          event={event}
+          onClose={() => setShowEditEvent(false)}
+          onCreated={() => load()}
+        />
       )}
     </div>
   )

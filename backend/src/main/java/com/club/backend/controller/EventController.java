@@ -9,6 +9,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -42,6 +43,12 @@ public class EventController {
     @GetMapping("/events/{eventId}")
     public ResponseEntity<EventResponse> getEvent(@PathVariable UUID eventId) {
         return ResponseEntity.ok(eventService.getEvent(eventId));
+    }
+
+    @PutMapping("/events/{eventId}")
+    public ResponseEntity<EventResponse> updateEvent(@PathVariable UUID eventId, @RequestBody CreateEventRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventService.updateEvent(eventId, request, principal));
     }
 
     @GetMapping("/events/pending")

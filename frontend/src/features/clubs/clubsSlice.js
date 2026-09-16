@@ -23,6 +23,18 @@ export const createClub = createAsyncThunk('clubs/createClub', async (payload, {
   }
 })
 
+export const updateClub = createAsyncThunk(
+  'clubs/updateClub',
+  async ({ clubId, payload }, { rejectWithValue }) => {
+    try {
+      const { data } = await api.put(`/clubs/${clubId}`, payload)
+      return data
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
 export const joinClub = createAsyncThunk('clubs/joinClub', async (clubId, { rejectWithValue }) => {
   try {
     const { data } = await api.post(`/clubs/${clubId}/join`)

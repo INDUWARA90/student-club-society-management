@@ -2,20 +2,28 @@ import { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useToast } from '../../components/ToastProvider'
 import { fileToBase64 } from '../../utils/fileToBase64'
-import { createEvent } from './eventsSlice'
+import { createEvent, updateEvent } from './eventsSlice'
 
 const inputClass =
   'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark'
 
-function CreateEventModal({ clubId, onClose, onCreated }) {
+function toDatetimeLocal(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function CreateEventModal({ clubId, event, onClose, onCreated }) {
   const dispatch = useDispatch()
   const { showToast } = useToast()
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [eventDate, setEventDate] = useState('')
-  const [fee, setFee] = useState('0')
-  const [capacity, setCapacity] = useState('')
-  const [bannerB64, setBannerB64] = useState(null)
+  const isEdit = Boolean(event)
+  const [title, setTitle] = useState(event?.title || '')
+  const [description, setDescription] = useState(event?.description || '')
+  const [eventDate, setEventDate] = useState(toDatetimeLocal(event?.eventDate))
+  const [fee, setFee] = useState(event ? String(event.fee) : '0')
+  const [capacity, setCapacity] = useState(event?.capacity ? String(event.capacity) : '')
+  const [bannerB64, setBannerB64] = useState(event?.bannerB64 || null)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -40,16 +48,19 @@ function CreateEventModal({ clubId, onClose, onCreated }) {
       fee: Number(fee) || 0,
       capacity: capacity ? Number(capacity) : null,
     }
-    const result = await dispatch(createEvent({ clubId, payload }))
+    const result = isEdit
+      ? await dispatch(updateEvent({ eventId: event.id, payload }))
+      : await dispatch(createEvent({ clubId, payload }))
     setSubmitting(false)
-    if (createEvent.fulfilled.match(result)) {
-      const created = result.payload
+    const action = isEdit ? updateEvent : createEvent
+    if (action.fulfilled.match(result)) {
+      const saved = result.payload
       showToast(
-        created.approvalStatus === 'PENDING'
+        saved.approvalStatus === 'PENDING'
           ? 'Event submitted for Faculty Advisor approval'
-          : 'Event created',
+          : isEdit ? 'Event updated' : 'Event created',
       )
-      onCreated?.(created)
+      onCreated?.(saved)
       onClose()
     } else {
       setError(result.payload)
@@ -60,7 +71,7 @@ function CreateEventModal({ clubId, onClose, onCreated }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
-        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Create an event</h2>
+        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">{isEdit ? 'Edit event' : 'Create an event'}</h2>
         <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="event-title">Title</label>
@@ -133,7 +144,7 @@ function CreateEventModal({ clubId, onClose, onCreated }) {
               disabled={submitting}
               className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
             >
-              {submitting ? 'Creating…' : 'Create event'}
+              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
             </button>
           </div>
         </form>

@@ -2,19 +2,20 @@ import { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useToast } from '../../components/ToastProvider'
 import { fileToBase64 } from '../../utils/fileToBase64'
-import { createClub } from './clubsSlice'
+import { createClub, updateClub } from './clubsSlice'
 
 const inputClass =
   'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark'
 
-function CreateClubModal({ onClose, onCreated }) {
+function CreateClubModal({ club, onClose, onCreated }) {
   const dispatch = useDispatch()
   const { showToast } = useToast()
-  const [name, setName] = useState('')
-  const [category, setCategory] = useState('')
-  const [description, setDescription] = useState('')
-  const [joinPolicy, setJoinPolicy] = useState('OPEN')
-  const [logoB64, setLogoB64] = useState(null)
+  const isEdit = Boolean(club)
+  const [name, setName] = useState(club?.name || '')
+  const [category, setCategory] = useState(club?.category || '')
+  const [description, setDescription] = useState(club?.description || '')
+  const [joinPolicy, setJoinPolicy] = useState(club?.joinPolicy || 'OPEN')
+  const [logoB64, setLogoB64] = useState(club?.logoB64 || null)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -31,12 +32,16 @@ function CreateClubModal({ onClose, onCreated }) {
       return
     }
     setSubmitting(true)
-    const result = await dispatch(createClub({ name, category, description, joinPolicy, logoB64 }))
+    const payload = { name, category, description, joinPolicy, logoB64 }
+    const result = isEdit
+      ? await dispatch(updateClub({ clubId: club.id, payload }))
+      : await dispatch(createClub(payload))
     setSubmitting(false)
-    if (createClub.fulfilled.match(result)) {
-      const created = result.payload
-      showToast(created.status === 'PENDING' ? 'Club proposal submitted for approval' : 'Club created')
-      onCreated?.(created)
+    const action = isEdit ? updateClub : createClub
+    if (action.fulfilled.match(result)) {
+      const saved = result.payload
+      showToast(isEdit ? 'Club updated' : saved.status === 'PENDING' ? 'Club proposal submitted for approval' : 'Club created')
+      onCreated?.(saved)
       onClose()
     } else {
       setError(result.payload)
@@ -47,7 +52,7 @@ function CreateClubModal({ onClose, onCreated }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
-        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Create a club</h2>
+        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">{isEdit ? 'Edit club' : 'Create a club'}</h2>
         <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-name">Name</label>
@@ -101,7 +106,7 @@ function CreateClubModal({ onClose, onCreated }) {
               disabled={submitting}
               className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
             >
-              {submitting ? 'Creating…' : 'Create club'}
+              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create club'}
             </button>
           </div>
         </form>

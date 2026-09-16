@@ -6,6 +6,7 @@ import Breadcrumbs from '../../components/Breadcrumbs'
 import { useToast } from '../../components/ToastProvider'
 import CreateEventModal from '../events/CreateEventModal'
 import { joinClub } from './clubsSlice'
+import CreateClubModal from './CreateClubModal'
 import LogExpenseModal from './LogExpenseModal'
 
 const OFFICER_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
@@ -28,6 +29,7 @@ function ClubDetailPage() {
   const [joinStatus, setJoinStatus] = useState(null)
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [showLogExpense, setShowLogExpense] = useState(false)
+  const [showEditClub, setShowEditClub] = useState(false)
 
   useEffect(() => {
     api.get(`/clubs/${clubId}`).then((res) => setClub(res.data))
@@ -107,14 +109,25 @@ function ClubDetailPage() {
             {club.category}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={handleJoin}
-          disabled={joinStatus !== null}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
-        >
-          {joinStatus === 'APPROVED' ? 'Joined' : joinStatus === 'PENDING' ? 'Request pending' : 'Join club'}
-        </button>
+        <div className="flex gap-2">
+          {isPresident && (
+            <button
+              type="button"
+              onClick={() => setShowEditClub(true)}
+              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            >
+              Edit club
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleJoin}
+            disabled={joinStatus !== null}
+            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
+          >
+            {joinStatus === 'APPROVED' ? 'Joined' : joinStatus === 'PENDING' ? 'Request pending' : 'Join club'}
+          </button>
+        </div>
       </div>
 
       <p className="mt-4 text-sm text-ink-muted dark:text-ink-dark-muted">
@@ -318,6 +331,14 @@ function ClubDetailPage() {
               expenses: [expense, ...prev.expenses],
             }))
           }
+        />
+      )}
+
+      {showEditClub && (
+        <CreateClubModal
+          club={club}
+          onClose={() => setShowEditClub(false)}
+          onCreated={(updated) => setClub(updated)}
         />
       )}
     </div>

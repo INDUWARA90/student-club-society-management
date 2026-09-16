@@ -13,4 +13,6 @@ public interface ClubRepository extends JpaRepository<Club, UUID> {
     List<Club> findByStatus(ClubStatus status);
 
     List<Club> findByCategory(String category);
+
+    List<Club> findByStatusAndNameContainingIgnoreCase(ClubStatus status, String name);
 }

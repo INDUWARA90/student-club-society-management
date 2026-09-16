@@ -16,4 +16,6 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     List<Event> findByApprovalStatus(EventApprovalStatus approvalStatus);
 
     List<Event> findByEventDateBetween(Instant start, Instant end);
+
+    List<Event> findByTitleContainingIgnoreCase(String title);
 }

@@ -25,6 +25,11 @@ function EventDetailPage() {
   const [myRsvpStatus, setMyRsvpStatus] = useState(null)
   const [error, setError] = useState(null)
   const [showEditEvent, setShowEditEvent] = useState(false)
+  const [feedbackList, setFeedbackList] = useState([])
+  const [avgRating, setAvgRating] = useState(0)
+  const [myRating, setMyRating] = useState(0)
+  const [feedbackComment, setFeedbackComment] = useState('')
+  const [submittingFeedback, setSubmittingFeedback] = useState(false)
 
   useEffect(() => {
     load()
@@ -34,14 +39,18 @@ function EventDetailPage() {
     const { data: eventData } = await api.get(`/events/${eventId}`)
     setEvent(eventData)
 
-    const [rsvpRes, waitlistRes, attendanceRes] = await Promise.all([
+    const [rsvpRes, waitlistRes, attendanceRes, feedbackRes, avgRes] = await Promise.all([
       api.get(`/events/${eventId}/rsvps`),
       api.get(`/events/${eventId}/waitlist`),
       api.get(`/events/${eventId}/attendance`),
+      api.get(`/events/${eventId}/feedback`),
+      api.get(`/events/${eventId}/feedback/average`),
     ])
     setRsvps(rsvpRes.data)
     setWaitlist(waitlistRes.data)
     setAttendance(attendanceRes.data)
+    setFeedbackList(feedbackRes.data)
+    setAvgRating(avgRes.data.averageRating)
 
     const mine = [...rsvpRes.data, ...waitlistRes.data].find((r) => r.userId === user?.id)
     setMyRsvpStatus(mine ? mine.status : null)
@@ -103,6 +112,21 @@ function EventDetailPage() {
       const message = e.response?.data?.message || 'Something went wrong'
       setError(message)
       showToast(message, 'error')
+    }
+  }
+
+  async function handleSubmitFeedback(e) {
+    e.preventDefault()
+    if (myRating < 1) return
+    setSubmittingFeedback(true)
+    try {
+      await api.post(`/events/${eventId}/feedback`, { rating: myRating, comment: feedbackComment })
+      showToast('Thanks for the feedback!')
+      load()
+    } catch (e2) {
+      showToast(e2.response?.data?.message || 'Something went wrong', 'error')
+    } finally {
+      setSubmittingFeedback(false)
     }
   }
 
@@ -246,6 +270,57 @@ function EventDetailPage() {
           </div>
         </section>
       )}
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">
+          Feedback {feedbackList.length > 0 && `(avg ${avgRating.toFixed(1)} / 5, ${feedbackList.length} review(s))`}
+        </h2>
+
+        {alreadyAttended && !feedbackList.some((f) => f.userId === user?.id) && (
+          <form onSubmit={handleSubmitFeedback} className="mt-3 space-y-2 rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setMyRating(star)}
+                  className={`text-xl ${star <= myRating ? 'text-warning' : 'text-ink-muted dark:text-ink-dark-muted'}`}
+                  aria-label={`${star} star`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={feedbackComment}
+              onChange={(e) => setFeedbackComment(e.target.value)}
+              placeholder="Optional comment..."
+              rows={2}
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
+            />
+            <button
+              type="submit"
+              disabled={submittingFeedback || myRating < 1}
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
+            >
+              Submit feedback
+            </button>
+          </form>
+        )}
+
+        {feedbackList.length === 0 && (
+          <p className="mt-2 text-sm text-ink-muted dark:text-ink-dark-muted">No feedback yet.</p>
+        )}
+        <div className="mt-3 space-y-2">
+          {feedbackList.map((f) => (
+            <div key={f.id} className="rounded-xl border border-border bg-surface p-3 shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
+              <p className="text-sm font-medium text-warning">{'★'.repeat(f.rating)}{'☆'.repeat(5 - f.rating)}</p>
+              {f.comment && <p className="mt-1 text-sm text-ink dark:text-ink-dark">{f.comment}</p>}
+              <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">— {f.userName}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {showEditEvent && (
         <CreateEventModal

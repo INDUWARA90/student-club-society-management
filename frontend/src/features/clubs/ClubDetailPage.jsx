@@ -30,6 +30,8 @@ function ClubDetailPage() {
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [showLogExpense, setShowLogExpense] = useState(false)
   const [showEditClub, setShowEditClub] = useState(false)
+  const [announcementDraft, setAnnouncementDraft] = useState('')
+  const [postingAnnouncement, setPostingAnnouncement] = useState(false)
 
   useEffect(() => {
     api.get(`/clubs/${clubId}`).then((res) => setClub(res.data))
@@ -68,6 +70,22 @@ function ClubDetailPage() {
       showToast('Position updated')
     } catch (e) {
       showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
+  async function handlePostAnnouncement(e) {
+    e.preventDefault()
+    if (!announcementDraft.trim()) return
+    setPostingAnnouncement(true)
+    try {
+      const { data } = await api.post(`/clubs/${clubId}/announcements`, { content: announcementDraft.trim() })
+      setAnnouncements((prev) => [data, ...prev])
+      setAnnouncementDraft('')
+      showToast('Announcement posted')
+    } catch (e2) {
+      showToast(e2.response?.data?.message || 'Something went wrong', 'error')
+    } finally {
+      setPostingAnnouncement(false)
     }
   }
 
@@ -187,6 +205,24 @@ function ClubDetailPage() {
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Announcements</h2>
+        {isOfficer && (
+          <form onSubmit={handlePostAnnouncement} className="mt-3 flex gap-2">
+            <input
+              type="text"
+              value={announcementDraft}
+              onChange={(e) => setAnnouncementDraft(e.target.value)}
+              placeholder="Post an update to the club feed..."
+              className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
+            />
+            <button
+              type="submit"
+              disabled={postingAnnouncement || !announcementDraft.trim()}
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
+            >
+              Post
+            </button>
+          </form>
+        )}
         {announcements.length === 0 && (
           <p className="mt-2 text-sm text-ink-muted dark:text-ink-dark-muted">No announcements yet.</p>
         )}

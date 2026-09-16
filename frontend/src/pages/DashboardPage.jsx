@@ -1,3 +1,15 @@
+import {
+  Award,
+  Calendar,
+  ClipboardList,
+  Compass,
+  FileText,
+  LogOut,
+  ScrollText,
+  Shield,
+  ShieldCheck,
+  Users,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -41,9 +53,16 @@ function DashboardPage() {
   const pendingMemberships = memberships.filter((m) => m.status === 'PENDING')
   const adminClubs = approvedMemberships.filter((m) => m.position === 'PRESIDENT')
 
+  const stats = [
+    { label: 'Clubs joined', value: approvedMemberships.length, icon: Users },
+    { label: 'Managing', value: adminClubs.length, icon: Shield },
+    { label: 'Certificates', value: certificates.length, icon: Award },
+    { label: 'Pending requests', value: pendingMemberships.length, icon: ClipboardList },
+  ]
+
   return (
     <div className="mx-auto max-w-5xl p-4 md:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-gradient-soft p-5">
         <div>
           <h1 className="text-2xl font-semibold text-ink dark:text-ink-dark">Welcome, {user?.name}</h1>
           <span
@@ -55,23 +74,39 @@ function DashboardPage() {
         <button
           type="button"
           onClick={() => dispatch(logout())}
-          className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+          className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:bg-surface-dark-muted dark:text-ink-dark dark:hover:bg-surface-dark"
         >
+          <LogOut className="h-4 w-4" />
           Log out
         </button>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {stats.map(({ label, value, icon: Icon }) => (
+          <div
+            key={label}
+            className="rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
+          >
+            <Icon className="h-5 w-5 text-brand-500" strokeWidth={2} />
+            <p className="mt-2 text-xl font-semibold text-ink dark:text-ink-dark">{value}</p>
+            <p className="text-xs text-ink-muted dark:text-ink-dark-muted">{label}</p>
+          </div>
+        ))}
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <Link
           to="/clubs"
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700"
+          className="flex items-center gap-1.5 rounded-md bg-brand-gradient px-4 py-2 text-sm font-medium text-white shadow-card transition-fast hover:brightness-110 hover:shadow-card-hover"
         >
+          <Compass className="h-4 w-4" />
           Browse clubs
         </Link>
         <Link
           to="/events"
-          className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+          className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
         >
+          <Calendar className="h-4 w-4" />
           Browse events
         </Link>
       </div>
@@ -79,7 +114,10 @@ function DashboardPage() {
       {/* Club Admin widget — shown to whoever currently holds PRESIDENT in any club, regardless of base role */}
       {adminClubs.length > 0 && (
         <section className="mt-8 rounded-xl border border-role-admin/30 bg-role-admin/5 p-4">
-          <h2 className="text-sm font-semibold text-role-admin">Clubs you manage</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-role-admin">
+            <Shield className="h-4 w-4" />
+            Clubs you manage
+          </h2>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {adminClubs.map((m) => (
               <Link
@@ -99,7 +137,10 @@ function DashboardPage() {
 
       {user?.role === 'SUPER_ADMIN' && (
         <section className="mt-8 rounded-xl border border-role-super/30 bg-role-super/5 p-4">
-          <h2 className="text-sm font-semibold text-role-super">Super Admin</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-role-super">
+            <ShieldCheck className="h-4 w-4" />
+            Super Admin
+          </h2>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               to="/admin/pending-clubs"
@@ -125,7 +166,10 @@ function DashboardPage() {
 
       {user?.role === 'FACULTY_ADVISOR' && (
         <section className="mt-8 rounded-xl border border-role-advisor/30 bg-role-advisor/5 p-4">
-          <h2 className="text-sm font-semibold text-role-advisor">Faculty Advisor</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-role-advisor">
+            <ScrollText className="h-4 w-4" />
+            Faculty Advisor
+          </h2>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               to="/advisor/pending-events"
@@ -177,7 +221,10 @@ function DashboardPage() {
 
       {certificates.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Your certificates</h2>
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold text-ink dark:text-ink-dark">
+            <FileText className="h-4 w-4 text-brand-500" />
+            Your certificates
+          </h2>
           <div className="mt-3 space-y-2">
             {certificates.map((c) => (
               <div

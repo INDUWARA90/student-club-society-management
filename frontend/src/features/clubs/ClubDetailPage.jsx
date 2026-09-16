@@ -1,3 +1,4 @@
+import { LogOut, Pencil, Plus, UserPlus, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useParams } from 'react-router-dom'
@@ -197,8 +198,9 @@ function ClubDetailPage() {
             <button
               type="button"
               onClick={() => setShowEditClub(true)}
-              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+              className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
             >
+              <Pencil className="h-4 w-4" />
               Edit club
             </button>
           )}
@@ -206,8 +208,9 @@ function ClubDetailPage() {
             <button
               type="button"
               onClick={handleLeave}
-              className="rounded-md border border-danger px-4 py-2 text-sm font-medium text-danger transition-fast hover:bg-danger/10"
+              className="flex items-center gap-1.5 rounded-md border border-danger px-4 py-2 text-sm font-medium text-danger transition-fast hover:bg-danger/10"
             >
+              <LogOut className="h-4 w-4" />
               Leave club
             </button>
           )}
@@ -216,8 +219,9 @@ function ClubDetailPage() {
               type="button"
               onClick={handleJoin}
               disabled={effectiveMembershipStatus === 'PENDING'}
-              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-md bg-brand-gradient px-4 py-2 text-sm font-medium text-white shadow-card transition-fast hover:brightness-110 hover:shadow-card-hover disabled:opacity-60"
             >
+              <UserPlus className="h-4 w-4" />
               {effectiveMembershipStatus === 'PENDING' ? 'Request pending' : 'Join club'}
             </button>
           )}
@@ -290,9 +294,10 @@ function ClubDetailPage() {
             <button
               type="button"
               onClick={() => setShowCreateEvent(true)}
-              className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition-fast hover:bg-brand-700"
+              className="flex items-center gap-1 rounded-md bg-brand-gradient px-3 py-1.5 text-xs font-medium text-white shadow-card transition-fast hover:brightness-110"
             >
-              + Create event
+              <Plus className="h-3.5 w-3.5" />
+              Create event
             </button>
           )}
         </div>
@@ -399,7 +404,10 @@ function ClubDetailPage() {
 
       <section className="mt-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Members ({members.length})</h2>
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold text-ink dark:text-ink-dark">
+            <Users className="h-4 w-4 text-brand-500" />
+            Members ({members.length})
+          </h2>
           <div className="flex items-center gap-3">
             {isPresident && (
               <label className="cursor-pointer text-xs text-brand-600 hover:underline">
@@ -463,9 +471,10 @@ function ClubDetailPage() {
             <button
               type="button"
               onClick={() => setShowLogExpense(true)}
-              className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition-fast hover:bg-brand-700"
+              className="flex items-center gap-1 rounded-md bg-brand-gradient px-3 py-1.5 text-xs font-medium text-white shadow-card transition-fast hover:brightness-110"
             >
-              + Log expense
+              <Plus className="h-3.5 w-3.5" />
+              Log expense
             </button>
           </div>
           <div className="mt-3 flex gap-3">

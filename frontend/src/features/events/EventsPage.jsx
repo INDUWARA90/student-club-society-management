@@ -1,3 +1,4 @@
+import { CalendarDays, CalendarX2, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -30,13 +31,16 @@ function EventsPage() {
       <h1 className="text-2xl font-semibold text-ink dark:text-ink-dark">Events</h1>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search events by title or club..."
-          className="min-w-[200px] flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
-        />
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search events by title or club..."
+            className="w-full rounded-md border border-border bg-surface py-2 pl-9 pr-3 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
+          />
+        </div>
         <input
           type="date"
           value={date}
@@ -64,7 +68,9 @@ function EventsPage() {
 
       {status !== 'loading' && visibleEvents.length === 0 && (
         <div className="mt-16 flex flex-col items-center text-center">
-          <p className="text-4xl">📅</p>
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-gradient-soft text-brand-500">
+            <CalendarX2 className="h-6 w-6" />
+          </span>
           <p className="mt-3 text-sm text-ink-muted dark:text-ink-dark-muted">
             {items.length === 0 ? 'No events yet — check back soon!' : 'No events match your search.'}
           </p>
@@ -79,11 +85,11 @@ function EventsPage() {
               to={`/events/${event.id}`}
               className="rounded-xl border border-border bg-surface p-4 shadow-card transition-base hover:-translate-y-0.5 hover:shadow-card-hover dark:border-border-dark dark:bg-surface-dark-muted"
             >
-              <div className="flex aspect-video items-center justify-center rounded-lg bg-surface-muted text-ink-muted dark:bg-surface-dark dark:text-ink-dark-muted">
+              <div className="flex aspect-video items-center justify-center rounded-lg bg-brand-gradient-soft text-brand-400 dark:text-brand-300">
                 {event.bannerB64 ? (
                   <img src={event.bannerB64} alt={event.title} className="h-full w-full rounded-lg object-cover" />
                 ) : (
-                  <span className="text-2xl">📅</span>
+                  <CalendarDays className="h-7 w-7" strokeWidth={1.5} />
                 )}
               </div>
               <div className="mt-3 flex items-center justify-between gap-2">

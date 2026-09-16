@@ -1,3 +1,4 @@
+import { CalendarPlus, CheckCircle2, MapPin, QrCode, Star, UserCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useParams } from 'react-router-dom'
@@ -204,8 +205,9 @@ function EventDetailPage() {
           <button
             type="button"
             onClick={handleShowQrCode}
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
           >
+            <QrCode className="h-3.5 w-3.5" />
             Show check-in QR code
           </button>
         </div>
@@ -213,7 +215,10 @@ function EventDetailPage() {
       <h1 className="mt-2 text-2xl font-semibold text-ink dark:text-ink-dark">{event.title}</h1>
       <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">{formatDate(event.eventDate)}</p>
       {event.location && (
-        <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">📍 {event.location}</p>
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-muted dark:text-ink-dark-muted">
+          <MapPin className="h-4 w-4" />
+          {event.location}
+        </p>
       )}
       <p className="mt-3 text-sm text-ink-muted dark:text-ink-dark-muted">{event.description}</p>
 
@@ -224,8 +229,9 @@ function EventDetailPage() {
           <button
             type="button"
             onClick={handleRsvp}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700"
+            className="flex items-center gap-1.5 rounded-md bg-brand-gradient px-4 py-2 text-sm font-medium text-white shadow-card transition-fast hover:brightness-110 hover:shadow-card-hover"
           >
+            <CheckCircle2 className="h-4 w-4" />
             {Number(event.fee) > 0 ? `RSVP (pay ${event.fee})` : 'RSVP'}
           </button>
         )}
@@ -233,8 +239,9 @@ function EventDetailPage() {
           <button
             type="button"
             onClick={handleCancelRsvp}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
           >
+            <X className="h-4 w-4" />
             {myRsvpStatus === 'WAITLISTED' ? 'Leave waitlist' : 'Cancel RSVP'}
           </button>
         )}
@@ -242,8 +249,9 @@ function EventDetailPage() {
           <button
             type="button"
             onClick={handleQrCheckIn}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
           >
+            <UserCheck className="h-4 w-4" />
             QR check-in
           </button>
         )}
@@ -251,8 +259,9 @@ function EventDetailPage() {
           <button
             type="button"
             onClick={handleAddToCalendar}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
           >
+            <CalendarPlus className="h-4 w-4" />
             Add to calendar
           </button>
         )}

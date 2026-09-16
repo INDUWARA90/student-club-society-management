@@ -16,6 +16,7 @@ import com.club.backend.dto.LoginRequest;
 import com.club.backend.dto.RegisterRequest;
 import com.club.backend.dto.ResetPasswordRequest;
 import com.club.backend.dto.UpdateProfileImageRequest;
+import com.club.backend.dto.UpdateProfileRequest;
 import com.club.backend.dto.UserResponse;
 import com.club.backend.security.UserPrincipal;
 import com.club.backend.service.AuthService;
@@ -54,6 +55,12 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(authService.currentUser(principal));
+    }
+
+    @PutMapping("/me/profile")
+    public ResponseEntity<UserResponse> updateProfile(@RequestBody UpdateProfileRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(authService.updateProfile(principal, request));
     }
 
     @PutMapping("/me/profile-image")

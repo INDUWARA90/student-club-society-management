@@ -17,6 +17,7 @@ import com.club.backend.dto.ForgotPasswordRequest;
 import com.club.backend.dto.LoginRequest;
 import com.club.backend.dto.RegisterRequest;
 import com.club.backend.dto.ResetPasswordRequest;
+import com.club.backend.dto.UpdateProfileRequest;
 import com.club.backend.dto.UserResponse;
 import com.club.backend.entity.PasswordResetToken;
 import com.club.backend.entity.Role;
@@ -143,6 +144,29 @@ public class AuthService {
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
+    }
+
+    public UserResponse updateProfile(UserPrincipal principal, UpdateProfileRequest request) {
+        if (isBlank(request.name())) {
+            throw ApiException.badRequest("Name is required");
+        }
+        if (isBlank(request.email()) || !EMAIL_PATTERN.matcher(request.email().trim()).matches()) {
+            throw ApiException.badRequest("A valid email is required");
+        }
+
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+
+        String newEmail = request.email().trim().toLowerCase();
+        if (!newEmail.equals(user.getEmail()) && userRepository.existsByEmail(newEmail)) {
+            throw ApiException.conflict("An account with this email already exists");
+        }
+
+        user.setName(request.name().trim());
+        user.setEmail(newEmail);
+        user = userRepository.save(user);
+
+        return UserResponse.from(user);
     }
 
     public UserResponse updateProfileImage(UserPrincipal principal, String profileImageB64) {

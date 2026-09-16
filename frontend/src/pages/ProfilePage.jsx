@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import { useToast } from '../components/ToastProvider'
-import { updateProfileImage } from '../features/auth/authSlice'
+import { logout, updateProfile, updateProfileImage } from '../features/auth/authSlice'
 import { fileToBase64 } from '../utils/fileToBase64'
 
 const inputClass =
@@ -10,13 +11,43 @@ const inputClass =
 
 function ProfilePage() {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const user = useSelector((state) => state.auth.user)
   const { showToast } = useToast()
   const [uploading, setUploading] = useState(false)
+  const [name, setName] = useState(user?.name || '')
+  const [email, setEmail] = useState(user?.email || '')
+  const [profileError, setProfileError] = useState(null)
+  const [savingProfile, setSavingProfile] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordError, setPasswordError] = useState(null)
   const [changingPassword, setChangingPassword] = useState(false)
+
+  async function handleSaveProfile(e) {
+    e.preventDefault()
+    setProfileError(null)
+    if (!name.trim() || !email.trim()) {
+      setProfileError('Name and email are required')
+      return
+    }
+    const emailChanged = email.trim().toLowerCase() !== user?.email
+    setSavingProfile(true)
+    const result = await dispatch(updateProfile({ name, email }))
+    setSavingProfile(false)
+    if (updateProfile.fulfilled.match(result)) {
+      if (emailChanged) {
+        showToast('Email updated — please log in again')
+        dispatch(logout())
+        navigate('/login')
+      } else {
+        showToast('Profile updated')
+      }
+    } else {
+      setProfileError(result.payload)
+      showToast(result.payload, 'error')
+    }
+  }
 
   async function handleFileChange(e) {
     const file = e.target.files?.[0]
@@ -71,6 +102,42 @@ function ProfilePage() {
           <p className="text-sm text-ink-muted dark:text-ink-dark-muted">{user?.email}</p>
         </div>
       </div>
+
+      <form onSubmit={handleSaveProfile} className="mt-8 max-w-sm space-y-4">
+        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Edit profile</h2>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="profile-name">
+            Name
+          </label>
+          <input
+            id="profile-name"
+            type="text"
+            className={inputClass}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="profile-email">
+            Email
+          </label>
+          <input
+            id="profile-email"
+            type="email"
+            className={inputClass}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        {profileError && <p className="text-sm text-danger">{profileError}</p>}
+        <button
+          type="submit"
+          disabled={savingProfile}
+          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
+        >
+          {savingProfile ? 'Saving…' : 'Save changes'}
+        </button>
+      </form>
 
       <div className="mt-6">
         <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="profile-picture">

@@ -60,6 +60,18 @@ export const resetPassword = createAsyncThunk(
   },
 )
 
+export const updateProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async (payload, { rejectWithValue }) => {
+    try {
+      const { data } = await api.put('/auth/me/profile', payload)
+      return data
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
 export const updateProfileImage = createAsyncThunk(
   'auth/updateProfileImage',
   async (profileImageB64, { rejectWithValue }) => {
@@ -137,6 +149,10 @@ const authSlice = createSlice({
       .addCase(resetPassword.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.user = action.payload
+        localStorage.setItem('user', JSON.stringify(action.payload))
       })
       .addCase(updateProfileImage.fulfilled, (state, action) => {
         state.user = action.payload

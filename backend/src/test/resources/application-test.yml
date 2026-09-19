@@ -1,0 +1,34 @@
+# Profile used by the automated tests (@ActiveProfiles("test")). It points at a dedicated database so tests never
+# touch the development data: locally the database is created on first use with your DB_USERNAME/DB_PASSWORD;
+# in CI it is the MySQL service container. Schema comes from the same Flyway migrations as production.
+spring:
+  datasource:
+    url: ${TEST_DATASOURCE_URL:jdbc:mysql://localhost:3306/club_management_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    database-platform: org.hibernate.dialect.MySQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: "1"
+  mail:
+    host: localhost
+    port: 3025
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:test-secret-that-is-at-least-thirty-two-characters-long}
+    expiration-ms: 3600000
+  frontend-url: http://localhost:5173
+  cors:
+    allowed-origins: http://localhost:5173
+  seed-demo-data: false
+  require-email-verification: false
+  trust-forwarded-headers: false
+  bootstrap-admin:
+    email: ""
+    password: ""

@@ -3,7 +3,7 @@ import { forwardRef } from 'react'
 
 const VARIANTS = {
   primary:
-    'bg-brand-gradient text-white shadow-card hover:brightness-110 hover:shadow-card-hover disabled:hover:brightness-100',
+    'bg-brand-gradient text-white shadow-[0_1px_2px_rgba(74,47,173,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] hover:brightness-110 hover:shadow-[0_6px_16px_rgba(124,92,252,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] disabled:hover:brightness-100 disabled:hover:shadow-none',
   secondary:
     'border border-border bg-surface text-ink hover:bg-surface-muted dark:border-border-dark dark:bg-surface-dark-muted dark:text-ink-dark dark:hover:bg-surface-dark',
   ghost:
@@ -29,7 +29,7 @@ const Button = forwardRef(function Button(
     <As
       ref={ref}
       {...(isButton ? { type: rest.type || 'button', disabled: disabled || loading } : {})}
-      className={`inline-flex items-center justify-center font-medium transition-fast disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center font-medium transition-fast active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     >
       {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

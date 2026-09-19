@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 /** Shared surface card. Renders a Link when `to` is given, else a div (or `as` override). */
 function Card({ to, interactive = Boolean(to), as: As = 'div', className = '', children, ...rest }) {
   const base = 'rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted'
-  const hover = interactive ? 'transition-base hover:-translate-y-0.5 hover:shadow-card-hover' : ''
+  const hover = interactive
+    ? 'transition-base hover:-translate-y-1 hover:border-brand-300 hover:shadow-card-hover dark:hover:border-brand-500/50'
+    : ''
 
   if (to) {
     return (

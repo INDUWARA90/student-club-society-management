@@ -8,6 +8,19 @@ import PageHeader from '../../components/ui/PageHeader'
 import Skeleton from '../../components/ui/Skeleton'
 import { fetchEvents } from './eventsSlice'
 
+const chip = (active) =>
+  `rounded-full px-3.5 py-1.5 text-sm font-medium transition-fast ${
+    active
+      ? 'bg-brand-500 text-white shadow-card'
+      : 'border border-border bg-surface text-ink-muted hover:border-brand-300 hover:text-ink dark:border-border-dark dark:bg-surface-dark-muted dark:text-ink-dark-muted dark:hover:text-ink-dark'
+  }`
+
+const WHEN = [
+  ['all', 'All'],
+  ['upcoming', 'Upcoming'],
+  ['past', 'Past'],
+]
+
 function formatDate(iso) {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
@@ -17,6 +30,7 @@ function EventsPage() {
   const { items, status } = useSelector((state) => state.events)
   const [search, setSearch] = useState('')
   const [date, setDate] = useState('')
+  const [when, setWhen] = useState('all')
 
   useEffect(() => {
     dispatch(fetchEvents())
@@ -27,7 +41,9 @@ function EventsPage() {
       event.title.toLowerCase().includes(search.trim().toLowerCase()) ||
       event.clubName.toLowerCase().includes(search.trim().toLowerCase())
     const matchesDate = !date || event.eventDate.slice(0, 10) === date
-    return matchesSearch && matchesDate
+    const isPast = new Date(event.eventDate) < new Date(new Date().toDateString())
+    const matchesWhen = when === 'all' || (when === 'past' ? isPast : !isPast)
+    return matchesSearch && matchesDate && matchesWhen
   })
 
   return (
@@ -62,6 +78,14 @@ function EventsPage() {
         )}
       </div>
 
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter by time">
+        {WHEN.map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={when === id} onClick={() => setWhen(id)} className={chip(when === id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {status === 'loading' && (
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -80,25 +104,27 @@ function EventsPage() {
       {status !== 'loading' && visibleEvents.length > 0 && (
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visibleEvents.map((event) => (
-            <Card key={event.id} to={`/events/${event.id}`}>
-              <div className="flex aspect-video items-center justify-center rounded-lg bg-brand-gradient-soft text-brand-400 dark:text-brand-300">
+            <Card key={event.id} to={`/events/${event.id}`} className="overflow-hidden p-0">
+              <div className="flex aspect-video items-center justify-center bg-brand-gradient-soft text-brand-400 dark:text-brand-300">
                 {event.bannerB64 ? (
-                  <img src={event.bannerB64} alt={event.title} className="h-full w-full rounded-lg object-cover" />
+                  <img src={event.bannerB64} alt={event.title} className="h-full w-full object-cover" />
                 ) : (
                   <CalendarDays className="h-7 w-7" strokeWidth={1.5} />
                 )}
               </div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <h2 className="font-semibold text-ink dark:text-ink-dark">{event.title}</h2>
-                <div className="flex shrink-0 items-center gap-1">
-                  {event.cancelled && <Badge tone="danger">Cancelled</Badge>}
-                  <Badge tone="brand">{event.clubName}</Badge>
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="font-semibold text-ink dark:text-ink-dark">{event.title}</h2>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {event.cancelled && <Badge tone="danger">Cancelled</Badge>}
+                    <Badge tone="brand">{event.clubName}</Badge>
+                  </div>
                 </div>
+                <p className="mt-1.5 text-sm text-ink-muted dark:text-ink-dark-muted">{formatDate(event.eventDate)}</p>
+                {Number(event.fee) > 0 && (
+                  <p className="mt-1 text-sm font-medium text-brand-600 dark:text-brand-300">Fee: {event.fee}</p>
+                )}
               </div>
-              <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">{formatDate(event.eventDate)}</p>
-              {Number(event.fee) > 0 && (
-                <p className="mt-1 text-sm text-ink-muted dark:text-ink-dark-muted">Fee: {event.fee}</p>
-              )}
             </Card>
           ))}
         </div>

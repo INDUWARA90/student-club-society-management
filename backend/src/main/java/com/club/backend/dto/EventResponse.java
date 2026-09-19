@@ -20,7 +20,15 @@ public record EventResponse(
         Integer capacity,
         boolean requiresFaApproval,
         EventApprovalStatus approvalStatus,
-        Instant createdAt) {
+        Instant createdAt,
+        UUID venueId,
+        String venueName,
+        String venueBuilding,
+        Instant endDate,
+        boolean cancelled,
+        String cancelReason,
+        String rejectionReason,
+        BigDecimal budget) {
 
     public static EventResponse from(Event event) {
         return new EventResponse(
@@ -36,6 +44,14 @@ public record EventResponse(
                 event.getCapacity(),
                 event.isRequiresFaApproval(),
                 event.getApprovalStatus(),
-                event.getCreatedAt());
+                event.getCreatedAt(),
+                event.getVenue() != null ? event.getVenue().getId() : null,
+                event.getVenue() != null ? event.getVenue().getName() : null,
+                event.getVenue() != null ? event.getVenue().getBuilding() : null,
+                event.getEndDate(),
+                event.isCancelled(),
+                event.getCancelReason(),
+                event.getRejectionReason(),
+                event.getBudget());
     }
 }

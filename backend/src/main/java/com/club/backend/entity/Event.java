@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.Length;
 import org.hibernate.annotations.UuidGenerator;
 
 import jakarta.persistence.Column;
@@ -49,11 +51,19 @@ public class Event {
     private String location;
 
     @Lob
-    @Column(name = "banner_b64")
+    @Column(name = "banner_b64", length = Length.LONG32)
     private String bannerB64;
 
     @Column(name = "event_date", nullable = false)
     private Instant eventDate;
+
+    /** End of the venue booking window; only meaningful when {@code venue} is set. */
+    @Column(name = "end_date")
+    private Instant endDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "venue_id")
+    private Venue venue;
 
     @Column(nullable = false, precision = 10, scale = 2)
     @Builder.Default
@@ -71,6 +81,22 @@ public class Event {
     @Column(name = "approval_status", nullable = false, length = 20)
     @Builder.Default
     private EventApprovalStatus approvalStatus = EventApprovalStatus.NOT_REQUIRED;
+
+    /** Optional spending plan for the event, compared against expenses linked to it in the club ledger. */
+    @Column(precision = 10, scale = 2)
+    private BigDecimal budget;
+
+    @Column(nullable = false)
+    @ColumnDefault("false")
+    @Builder.Default
+    private boolean cancelled = false;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
+
+    /** Why the Faculty Advisor rejected the event; cleared when the event is resubmitted. */
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default

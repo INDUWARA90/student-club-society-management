@@ -1,11 +1,19 @@
-import { Moon, Search, Sparkles, Sun, TriangleAlert, X } from 'lucide-react'
+import { Award, CalendarDays, CalendarRange, GraduationCap, LayoutDashboard, Moon, Search, Sparkles, Sun, TriangleAlert, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Outlet, Link, useNavigate } from 'react-router-dom'
+import { Outlet, Link, NavLink, useNavigate } from 'react-router-dom'
 import { resendVerification } from '../features/auth/authSlice'
 import { toggleTheme } from '../features/theme/themeSlice'
 import { useToast } from './ToastProvider'
 import NotificationBell from './NotificationBell'
+
+const NAV_LINKS = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/events', label: 'Events', icon: CalendarDays },
+  { to: '/calendar', label: 'Calendar', icon: CalendarRange },
+  { to: '/clubs', label: 'Clubs', icon: Users },
+  { to: '/alumni', label: 'Alumni', icon: GraduationCap },
+]
 
 function AppLayout() {
   const dispatch = useDispatch()
@@ -43,6 +51,25 @@ function AppLayout() {
           </span>
           <span className="hidden sm:inline">Club &amp; Society</span>
         </Link>
+        <nav className="hidden items-center gap-1 md:flex">
+          {NAV_LINKS.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-fast ${
+                  isActive
+                    ? 'bg-brand-gradient-soft text-brand-700 dark:text-brand-300'
+                    : 'text-ink-muted hover:bg-surface-muted hover:text-ink dark:text-ink-dark-muted dark:hover:bg-surface-dark dark:hover:text-ink-dark'
+                }`
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
         <form onSubmit={handleSearch} className="relative order-3 w-full sm:order-none sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted" />
           <input
@@ -63,6 +90,13 @@ function AppLayout() {
           >
             {themeMode === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
           </button>
+          <Link
+            to="/certificates"
+            aria-label="My certificates"
+            className="rounded-full p-2 text-ink-muted transition-fast hover:bg-surface-muted hover:text-ink dark:text-ink-dark-muted dark:hover:bg-surface-dark dark:hover:text-ink-dark"
+          >
+            <Award className="h-[18px] w-[18px]" />
+          </Link>
           <NotificationBell />
           <Link
             to="/profile"

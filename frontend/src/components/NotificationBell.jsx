@@ -1,50 +1,44 @@
 import { Bell } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useSelector } from 'react-redux'
-import api from '../api/axios'
+import { useDispatch, useSelector } from 'react-redux'
+import { Link } from 'react-router-dom'
 import { subscribeToNotifications } from '../api/websocket'
+import {
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  notificationReceived,
+} from '../features/notifications/notificationsSlice'
 import { useToast } from './ToastProvider'
 
 function NotificationBell() {
+  const dispatch = useDispatch()
   const user = useSelector((state) => state.auth.user)
+  const { items: notifications } = useSelector((state) => state.notifications)
   const { showToast } = useToast()
-  const [notifications, setNotifications] = useState([])
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
   useEffect(() => {
-    load()
+    dispatch(fetchNotifications())
     function handleClickOutside(e) {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  }, [dispatch])
 
   useEffect(() => {
     if (!user?.id) return
     const unsubscribe = subscribeToNotifications(user.id, (notification) => {
-      setNotifications((prev) => [notification, ...prev])
+      dispatch(notificationReceived(notification))
       showToast(notification.message)
     })
     return unsubscribe
-  }, [user?.id])
-
-  function load() {
-    api.get('/notifications/me').then((res) => setNotifications(res.data)).catch(() => {})
-  }
-
-  async function markRead(id) {
-    await api.post(`/notifications/${id}/read`)
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-  }
-
-  async function markAllRead() {
-    await api.post('/notifications/read-all')
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-  }
+  }, [user?.id, dispatch])
 
   const unreadCount = notifications.filter((n) => !n.read).length
+  const preview = notifications.slice(0, 5)
 
   return (
     <div className="relative" ref={ref}>
@@ -67,21 +61,21 @@ function NotificationBell() {
           {unreadCount > 0 && (
             <button
               type="button"
-              onClick={markAllRead}
+              onClick={() => dispatch(markAllNotificationsRead())}
               className="mb-1 block w-full rounded-md p-2 text-left text-xs font-medium text-brand-600 transition-fast hover:bg-surface-muted dark:hover:bg-surface-dark"
             >
               Mark all as read
             </button>
           )}
-          {notifications.length === 0 && (
+          {preview.length === 0 && (
             <p className="p-3 text-sm text-ink-muted dark:text-ink-dark-muted">No notifications yet.</p>
           )}
           <div className="max-h-80 space-y-1 overflow-y-auto">
-            {notifications.map((n) => (
+            {preview.map((n) => (
               <button
                 key={n.id}
                 type="button"
-                onClick={() => markRead(n.id)}
+                onClick={() => dispatch(markNotificationRead(n.id))}
                 className={`block w-full rounded-md p-2 text-left text-sm transition-fast hover:bg-surface-muted dark:hover:bg-surface-dark ${
                   n.read ? 'text-ink-muted dark:text-ink-dark-muted' : 'font-medium text-ink dark:text-ink-dark'
                 }`}
@@ -90,6 +84,13 @@ function NotificationBell() {
               </button>
             ))}
           </div>
+          <Link
+            to="/notifications"
+            onClick={() => setOpen(false)}
+            className="mt-1 block rounded-md p-2 text-center text-xs font-medium text-brand-600 transition-fast hover:bg-surface-muted dark:hover:bg-surface-dark"
+          >
+            View all
+          </Link>
         </div>
       )}
     </div>

@@ -14,6 +14,8 @@ import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import api from '../api/axios'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
 import { logout } from '../features/auth/authSlice'
 
 const ROLE_BADGE_CLASS = {
@@ -71,44 +73,31 @@ function DashboardPage() {
             {ROLE_LABEL[user?.role] || user?.role}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => dispatch(logout())}
-          className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:bg-surface-dark-muted dark:text-ink-dark dark:hover:bg-surface-dark"
-        >
+        <Button variant="secondary" onClick={() => dispatch(logout())}>
           <LogOut className="h-4 w-4" />
           Log out
-        </button>
+        </Button>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {stats.map(({ label, value, icon: Icon }) => (
-          <div
-            key={label}
-            className="rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
-          >
+          <Card key={label} interactive={false}>
             <Icon className="h-5 w-5 text-brand-500" strokeWidth={2} />
             <p className="mt-2 text-xl font-semibold text-ink dark:text-ink-dark">{value}</p>
             <p className="text-xs text-ink-muted dark:text-ink-dark-muted">{label}</p>
-          </div>
+          </Card>
         ))}
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        <Link
-          to="/clubs"
-          className="flex items-center gap-1.5 rounded-md bg-brand-gradient px-4 py-2 text-sm font-medium text-white shadow-card transition-fast hover:brightness-110 hover:shadow-card-hover"
-        >
+        <Button as={Link} to="/clubs">
           <Compass className="h-4 w-4" />
           Browse clubs
-        </Link>
-        <Link
-          to="/events"
-          className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
-        >
+        </Button>
+        <Button variant="secondary" as={Link} to="/events">
           <Calendar className="h-4 w-4" />
           Browse events
-        </Link>
+        </Button>
       </div>
 
       {/* Club Admin widget — shown to whoever currently holds PRESIDENT in any club, regardless of base role */}
@@ -159,6 +148,12 @@ function DashboardPage() {
               className="rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-card transition-fast hover:-translate-y-0.5 dark:bg-surface-dark-muted dark:text-ink-dark"
             >
               Audit log
+            </Link>
+            <Link
+              to="/admin/venues"
+              className="rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-card transition-fast hover:-translate-y-0.5 dark:bg-surface-dark-muted dark:text-ink-dark"
+            >
+              Manage venues
             </Link>
           </div>
         </section>
@@ -221,21 +216,23 @@ function DashboardPage() {
 
       {certificates.length > 0 && (
         <section className="mt-8">
-          <h2 className="flex items-center gap-1.5 text-lg font-semibold text-ink dark:text-ink-dark">
-            <FileText className="h-4 w-4 text-brand-500" />
-            Your certificates
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-ink dark:text-ink-dark">
+              <FileText className="h-4 w-4 text-brand-500" />
+              Your certificates
+            </h2>
+            <Link to="/certificates" className="text-xs text-brand-600 hover:underline">
+              View all
+            </Link>
+          </div>
           <div className="mt-3 space-y-2">
             {certificates.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center justify-between rounded-xl border border-border bg-surface p-3 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
-              >
+              <Card key={c.id} interactive={false} className="flex items-center justify-between">
                 <span className="text-sm text-ink dark:text-ink-dark">{c.clubName}</span>
                 <button type="button" onClick={() => downloadCertificate(c.id)} className="text-sm text-brand-600 hover:underline">
                   Download PDF
                 </button>
-              </div>
+              </Card>
             ))}
           </div>
         </section>

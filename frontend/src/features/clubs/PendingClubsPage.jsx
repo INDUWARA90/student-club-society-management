@@ -1,6 +1,11 @@
+import { CheckCircle2, ClipboardList } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api from '../../api/axios'
 import { useToast } from '../../components/ToastProvider'
+import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
+import EmptyState from '../../components/ui/EmptyState'
+import PageHeader from '../../components/ui/PageHeader'
 
 function PendingClubsPage() {
   const { showToast } = useToast()
@@ -29,19 +34,16 @@ function PendingClubsPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
-      <h1 className="text-2xl font-semibold text-ink dark:text-ink-dark">Pending club proposals</h1>
+      <PageHeader title="Pending club proposals" />
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
 
       {clubs.length === 0 && (
-        <p className="mt-6 text-sm text-ink-muted dark:text-ink-dark-muted">No pending club proposals.</p>
+        <EmptyState icon={CheckCircle2} description="No pending club proposals." />
       )}
 
       <div className="mt-6 space-y-3">
         {clubs.map((club) => (
-          <div
-            key={club.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
-          >
+          <Card key={club.id} interactive={false} className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-ink dark:text-ink-dark">{club.name}</h2>
               <p className="text-sm text-ink-muted dark:text-ink-dark-muted">
@@ -49,22 +51,14 @@ function PendingClubsPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => review(club.id, true)}
-                className="rounded-md bg-success px-3 py-1.5 text-sm font-medium text-white transition-fast hover:opacity-90"
-              >
+              <Button variant="success" size="sm" onClick={() => review(club.id, true)}>
                 Approve
-              </button>
-              <button
-                type="button"
-                onClick={() => review(club.id, false)}
-                className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white transition-fast hover:opacity-90"
-              >
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => review(club.id, false)}>
                 Reject
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

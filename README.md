@@ -1,7 +1,5 @@
 # Student Club & Society Management System
 
-Full spec: [`full-spec.md`](./full-spec.md).
-
 This repo holds two independent projects side by side (not a monorepo with shared tooling/workspaces — each has its own dependencies and build):
 
 - [`backend/`](./backend) — Spring Boot (Maven)
@@ -33,7 +31,7 @@ events, RSVPs, attendance). Demo accounts (password: `password123`):
 - Student (Tech Innovators President): `alice@example.com`
 - Student: `bob@example.com`, `carol@example.com`, `dave@example.com`
 
-> Note: `full-spec.md` specifies PostgreSQL, but this project runs on MySQL instead (project decision).
+> Note: the database is MySQL 8 (schema managed by Flyway migrations).
 
 Or run each separately:
 

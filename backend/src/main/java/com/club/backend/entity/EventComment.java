@@ -20,23 +20,23 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** author must hold an officer position (PRESIDENT/VP/SECRETARY/TREASURER) in the club — enforced in the service layer. */
+/** Discussion on an event, separate from star-rating feedback. Only an approved club member may comment. */
 @Entity
-@Table(name = "club_announcements")
+@Table(name = "event_comments")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ClubAnnouncement {
+public class EventComment {
 
     @Id
     @UuidGenerator
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "club_id", nullable = false)
-    private Club club;
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "author_id", nullable = false)

@@ -3,6 +3,7 @@ package com.club.backend.entity;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.Length;
 import org.hibernate.annotations.UuidGenerator;
 
 import jakarta.persistence.Column;
@@ -43,7 +44,7 @@ public class Notification {
     private NotificationChannel channel;
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, length = Length.LONG32)
     private String message;
 
     @Column(name = "is_read", nullable = false)

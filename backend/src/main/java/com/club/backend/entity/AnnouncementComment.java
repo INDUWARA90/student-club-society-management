@@ -3,6 +3,7 @@ package com.club.backend.entity;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.Length;
 import org.hibernate.annotations.UuidGenerator;
 
 import jakarta.persistence.Column;
@@ -42,7 +43,7 @@ public class AnnouncementComment {
     private User author;
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, length = Length.LONG32)
     private String content;
 
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -1,5 +1,6 @@
 package com.club.backend.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,4 +16,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByEmail(String email);
 
     long countByRole(Role role);
+
+    List<User> findByRole(Role role);
+
+    /** Users who want emails but batched into the daily digest. */
+    List<User> findByEmailNotificationsEnabledTrueAndEmailDigestEnabledTrue();
+
+    List<User> findByGraduationYearLessThan(int year);
 }

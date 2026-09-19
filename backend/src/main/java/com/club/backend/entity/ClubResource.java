@@ -20,15 +20,17 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** author must hold an officer position (PRESIDENT/VP/SECRETARY/TREASURER) in the club — enforced in the service layer. */
+/** A shared document (constitution, meeting minutes, etc.) uploaded by a club officer. Officer-only upload,
+ *  enforced in the service layer, same as {@link ClubAnnouncement}. Stored as base64, same convention as
+ *  {@code Club.logoB64}/{@code Event.bannerB64} — no separate file-storage mechanism in this app. */
 @Entity
-@Table(name = "club_announcements")
+@Table(name = "club_resources")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ClubAnnouncement {
+public class ClubResource {
 
     @Id
     @UuidGenerator
@@ -39,12 +41,21 @@ public class ClubAnnouncement {
     private Club club;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "author_id", nullable = false)
-    private User author;
+    @JoinColumn(name = "uploaded_by", nullable = false)
+    private User uploadedBy;
+
+    @Column(nullable = false, length = 150)
+    private String title;
+
+    @Column(name = "file_name", nullable = false, length = 255)
+    private String fileName;
+
+    @Column(name = "content_type", nullable = false, length = 100)
+    private String contentType;
 
     @Lob
-    @Column(nullable = false, length = Length.LONG32)
-    private String content;
+    @Column(name = "file_b64", nullable = false, length = Length.LONG32)
+    private String fileB64;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default

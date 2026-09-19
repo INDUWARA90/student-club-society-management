@@ -3,6 +3,8 @@ package com.club.backend.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.club.backend.dto.AuditLogResponse;
@@ -27,6 +29,10 @@ public class AuditLogService {
                 .details(details)
                 .build();
         auditLogRepository.save(entry);
+    }
+
+    public Page<AuditLogResponse> page(Pageable pageable) {
+        return auditLogRepository.findAllByOrderByCreatedAtDesc(pageable).map(AuditLogResponse::from);
     }
 
     public List<AuditLogResponse> listAll() {

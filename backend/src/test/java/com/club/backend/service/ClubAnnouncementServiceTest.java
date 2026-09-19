@@ -99,6 +99,8 @@ class ClubAnnouncementServiceTest {
 
         announcementService.postAnnouncement(club.getId(), new CreateAnnouncementRequest("Hello everyone"), principal);
 
-        verify(notificationService, times(2)).notify(any(User.class), any(String.class));
+        // One async fan-out call for the whole club, not a notify() per member on the request thread.
+        verify(notificationService).notifyUsers(
+                org.mockito.ArgumentMatchers.eq(List.of(member1.getId(), member2.getId())), any(String.class));
     }
 }

@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.club.backend.config.ApiException;
 import com.club.backend.dto.ClubAnnouncementResponse;
@@ -25,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class ClubAnnouncementService {
 
     private static final Set<MembershipPosition> OFFICER_POSITIONS = Set.of(
@@ -42,6 +44,8 @@ public class ClubAnnouncementService {
         if (request.content() == null || request.content().trim().isEmpty()) {
             throw ApiException.badRequest("Announcement content is required");
         }
+
+        InputLimits.requireMaxChars(request.content(), InputLimits.MAX_ANNOUNCEMENT_CHARS, "An announcement");
 
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> ApiException.notFound("Club not found"));
@@ -63,9 +67,12 @@ public class ClubAnnouncementService {
                 .build();
         announcement = announcementRepository.save(announcement);
 
-        String notifyMessage = "New announcement in " + club.getName() + ": " + announcement.getContent();
-        membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.APPROVED)
-                .forEach(m -> notificationService.notify(m.getUser(), notifyMessage));
+        // Notifications carry a short preview, not the whole post.
+        String notifyMessage = "New announcement in " + club.getName() + ": " + InputLimits.clip(announcement.getContent(), 160);
+        // Fanned out off the request thread — a big club would otherwise hold this request open for every email.
+        List<UUID> memberIds = membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.APPROVED)
+                .stream().map(m -> m.getUser().getId()).toList();
+        notificationService.notifyUsers(memberIds, notifyMessage);
 
         return ClubAnnouncementResponse.from(announcement);
     }

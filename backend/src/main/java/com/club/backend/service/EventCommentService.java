@@ -6,15 +6,15 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.club.backend.config.ApiException;
-import com.club.backend.dto.AnnouncementCommentResponse;
 import com.club.backend.dto.CreateCommentRequest;
-import com.club.backend.entity.AnnouncementComment;
-import com.club.backend.entity.ClubAnnouncement;
+import com.club.backend.dto.EventCommentResponse;
+import com.club.backend.entity.Event;
+import com.club.backend.entity.EventComment;
 import com.club.backend.entity.MembershipPosition;
 import com.club.backend.entity.MembershipStatus;
 import com.club.backend.entity.User;
-import com.club.backend.repository.AnnouncementCommentRepository;
-import com.club.backend.repository.ClubAnnouncementRepository;
+import com.club.backend.repository.EventCommentRepository;
+import com.club.backend.repository.EventRepository;
 import com.club.backend.repository.MembershipRepository;
 import com.club.backend.repository.UserRepository;
 import com.club.backend.security.UserPrincipal;
@@ -23,60 +23,56 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class AnnouncementCommentService {
+public class EventCommentService {
 
-    private final AnnouncementCommentRepository commentRepository;
-    private final ClubAnnouncementRepository announcementRepository;
+    private final EventCommentRepository commentRepository;
+    private final EventRepository eventRepository;
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
 
-    public AnnouncementCommentResponse postComment(UUID clubId, UUID announcementId, CreateCommentRequest request,
-            UserPrincipal principal) {
+    public EventCommentResponse postComment(UUID eventId, CreateCommentRequest request, UserPrincipal principal) {
         if (request.content() == null || request.content().trim().isEmpty()) {
             throw ApiException.badRequest("Comment content is required");
         }
 
         InputLimits.requireMaxChars(request.content(), InputLimits.MAX_COMMENT_CHARS, "A comment");
 
-        ClubAnnouncement announcement = announcementRepository.findById(announcementId)
-                .orElseThrow(() -> ApiException.notFound("Announcement not found"));
-
-        if (!announcement.getClub().getId().equals(clubId)) {
-            throw ApiException.notFound("Announcement not found");
-        }
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> ApiException.notFound("Event not found"));
 
         User author = userRepository.findById(principal.getId())
                 .orElseThrow(() -> ApiException.notFound("User not found"));
 
-        membershipRepository.findByUserIdAndClubId(author.getId(), clubId)
+        membershipRepository.findByUserIdAndClubId(author.getId(), event.getClub().getId())
                 .filter(m -> m.getStatus() == MembershipStatus.APPROVED)
                 .orElseThrow(() -> ApiException.forbidden("Only club members can comment"));
 
-        AnnouncementComment comment = AnnouncementComment.builder()
-                .announcement(announcement)
+        EventComment comment = EventComment.builder()
+                .event(event)
                 .author(author)
                 .content(request.content().trim())
                 .build();
         comment = commentRepository.save(comment);
 
-        return AnnouncementCommentResponse.from(comment);
+        return EventCommentResponse.from(comment);
     }
 
-    public List<AnnouncementCommentResponse> listComments(UUID announcementId) {
-        return commentRepository.findByAnnouncementIdOrderByCreatedAtAsc(announcementId)
-                .stream().map(AnnouncementCommentResponse::from).toList();
+    public List<EventCommentResponse> listComments(UUID eventId) {
+        return commentRepository.findByEventIdOrderByCreatedAtAsc(eventId)
+                .stream().map(EventCommentResponse::from).toList();
     }
 
-    public void deleteComment(UUID clubId, UUID commentId, UserPrincipal principal) {
-        AnnouncementComment comment = commentRepository.findById(commentId)
+    public void deleteComment(UUID eventId, UUID commentId, UserPrincipal principal) {
+        EventComment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> ApiException.notFound("Comment not found"));
 
-        if (!comment.getAnnouncement().getClub().getId().equals(clubId)) {
+        if (!comment.getEvent().getId().equals(eventId)) {
             throw ApiException.notFound("Comment not found");
         }
 
         boolean isAuthor = comment.getAuthor().getId().equals(principal.getId());
-        boolean isPresident = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId)
+        boolean isPresident = membershipRepository
+                .findByUserIdAndClubId(principal.getId(), comment.getEvent().getClub().getId())
                 .filter(m -> m.getStatus() == MembershipStatus.APPROVED)
                 .map(m -> m.getPosition() == MembershipPosition.PRESIDENT)
                 .orElse(false);

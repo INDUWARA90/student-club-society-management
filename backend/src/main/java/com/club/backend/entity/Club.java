@@ -1,8 +1,11 @@
 package com.club.backend.entity;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.Length;
 import org.hibernate.annotations.UuidGenerator;
 
 import jakarta.persistence.Column;
@@ -53,8 +56,25 @@ public class Club {
     @Builder.Default
     private JoinPolicy joinPolicy = JoinPolicy.OPEN;
 
+    /** One-off fee to join; zero means free. Must be paid (simulated) before a join request is accepted. */
+    @Column(name = "membership_fee", nullable = false, precision = 10, scale = 2)
+    @ColumnDefault("0")
+    @Builder.Default
+    private BigDecimal membershipFee = BigDecimal.ZERO;
+
+    /** Events a member must attend to earn the club's certificate; null falls back to the sitewide default. */
+    @Column(name = "certificate_threshold")
+    @Builder.Default
+    private Integer certificateThreshold = 3;
+
+    /** Archived clubs are closed: hidden from browsing, no joins, no new events. Kept for the record. */
+    @Column(nullable = false)
+    @ColumnDefault("false")
+    @Builder.Default
+    private boolean archived = false;
+
     @Lob
-    @Column(name = "logo_b64")
+    @Column(name = "logo_b64", length = Length.LONG32)
     private String logoB64;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

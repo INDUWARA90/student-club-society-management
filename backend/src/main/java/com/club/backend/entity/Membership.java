@@ -13,6 +13,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -60,4 +62,18 @@ public class Membership {
     @Column(name = "joined_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant joinedAt = Instant.now();
+
+    /**
+     * Mirrors the club id while this membership is the PRESIDENT, otherwise null. The unique constraint on it gives
+     * a database-level "exactly one President per club" guarantee (MySQL has no partial unique indexes, and unique
+     * indexes allow many NULLs).
+     */
+    @Column(name = "president_club_id", unique = true)
+    private UUID presidentClubId;
+
+    @PrePersist
+    @PreUpdate
+    void syncPresidentMarker() {
+        presidentClubId = position == MembershipPosition.PRESIDENT && club != null ? club.getId() : null;
+    }
 }

@@ -1,5 +1,6 @@
 package com.club.backend.dto;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -16,7 +17,10 @@ public record ClubResponse(
         JoinPolicy joinPolicy,
         String logoB64,
         UUID createdBy,
-        Instant createdAt) {
+        Instant createdAt,
+        BigDecimal membershipFee,
+        Integer certificateThreshold,
+        boolean archived) {
 
     public static ClubResponse from(Club club) {
         return new ClubResponse(
@@ -28,6 +32,9 @@ public record ClubResponse(
                 club.getJoinPolicy(),
                 club.getLogoB64(),
                 club.getCreatedBy().getId(),
-                club.getCreatedAt());
+                club.getCreatedAt(),
+                club.getMembershipFee(),
+                club.getCertificateThreshold(),
+                club.isArchived());
     }
 }

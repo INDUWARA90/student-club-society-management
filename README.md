@@ -7,11 +7,12 @@ This repo holds two independent projects side by side (not a monorepo with share
 
 ## Local dev
 
-Copy the env template and fill in real values (see [`.env.example`](./.env.example)):
+Each project has its own env file, and both are git-ignored. Copy the templates and fill in real values:
 
 ```bash
-cp .env.example .env
-cp .env.example backend/.env   # only needed if you run the backend outside Docker
+cp backend/.env.example backend/.env     # backend: database login, JWT secret, mail (read automatically on start)
+cp frontend/.env.example frontend/.env   # frontend: VITE_API_BASE_URL (read automatically by Vite)
+cp .env.example .env                     # only for `docker compose up` (see below)
 ```
 
 ```bash
@@ -42,7 +43,7 @@ cd frontend && npm install && npm run dev
 
 ## Configuration switches
 
-Set these in `.env` (see [`.env.example`](./.env.example)). The defaults suit local development and the demo `docker compose` stack; a real deployment should change them.
+Set these in `backend/.env` (see [`backend/.env.example`](./backend/.env.example)), or in the root `.env` for `docker compose`. The defaults suit local development and the demo `docker compose` stack; a real deployment should change them.
 
 | Variable | Local / demo default | Real deployment |
 |---|---|---|

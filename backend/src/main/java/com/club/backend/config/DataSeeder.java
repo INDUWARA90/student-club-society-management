@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +37,8 @@ import lombok.RequiredArgsConstructor;
 
 /** Loads demo/seed data for a viva presentation — only runs against an empty database. */
 @Component
+@Order(1)
+@ConditionalOnProperty(name = "app.seed-demo-data", havingValue = "true")
 @RequiredArgsConstructor
 public class DataSeeder implements CommandLineRunner {
 

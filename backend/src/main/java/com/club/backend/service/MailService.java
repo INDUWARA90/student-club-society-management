@@ -46,6 +46,39 @@ public class MailService {
         }
     }
 
+    /** Sent instead of a verification link when someone registers with an address that already has an account. */
+    @Async
+    public void sendAccountExistsEmail(String toEmail) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(toEmail);
+        message.setSubject("You already have an account");
+        message.setText("Someone (hopefully you) tried to create a Club & Society Management account with this email "
+                + "address, but one already exists.\n\nYou can sign in at " + frontendUrl + "/login, or reset your "
+                + "password at " + frontendUrl + "/forgot-password if you've forgotten it.\n\n"
+                + "If this wasn't you, you can ignore this email.");
+        try {
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.warn("Failed to send account-exists email to {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Async
+    public void sendDigestEmail(String toEmail, String name, java.util.List<String> messages) {
+        SimpleMailMessage mail = new SimpleMailMessage();
+        mail.setTo(toEmail);
+        mail.setSubject("Your daily Club & Society Management digest");
+        StringBuilder body = new StringBuilder("Hi " + name + ",\n\nHere's what happened in the last 24 hours:\n\n");
+        messages.forEach(m -> body.append("• ").append(m).append("\n"));
+        body.append("\nOpen the app: ").append(frontendUrl).append("/notifications");
+        mail.setText(body.toString());
+        try {
+            mailSender.send(mail);
+        } catch (Exception e) {
+            log.warn("Failed to send digest email to {}: {}", toEmail, e.getMessage());
+        }
+    }
+
     @Async
     public void sendPasswordResetEmail(String toEmail, String token) {
         String resetLink = frontendUrl + "/reset-password?token=" + token;

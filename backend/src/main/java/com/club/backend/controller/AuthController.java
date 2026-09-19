@@ -1,5 +1,7 @@
 package com.club.backend.controller;
 
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,8 +34,13 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(authService.register(request));
+    public ResponseEntity<Object> register(@RequestBody RegisterRequest request) {
+        AuthResponse response = authService.register(request);
+        if (response.accessToken() == null) {
+            // Verification is required: same neutral answer whether or not the address was already registered.
+            return ResponseEntity.accepted().body(Map.of("message", "Check your email to finish creating your account."));
+        }
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
@@ -83,9 +90,8 @@ public class AuthController {
     }
 
     @PutMapping("/me/password")
-    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest request,
+    public ResponseEntity<AuthResponse> changePassword(@RequestBody ChangePasswordRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
-        authService.changePassword(principal, request);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(authService.changePassword(principal, request));
     }
 }

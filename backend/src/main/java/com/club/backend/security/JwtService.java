@@ -1,6 +1,7 @@
 package com.club.backend.security;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
@@ -46,6 +47,11 @@ public class JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    public Instant extractIssuedAt(String token) {
+        Date issuedAt = parseClaims(token).getIssuedAt();
+        return issuedAt != null ? issuedAt.toInstant() : Instant.EPOCH;
     }
 
     public String extractEmail(String token) {

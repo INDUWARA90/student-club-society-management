@@ -1,6 +1,8 @@
 package com.club.backend.security;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -10,6 +12,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.club.backend.entity.User;
 import com.club.backend.repository.UserRepository;
 
 import jakarta.servlet.FilterChain;
@@ -45,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String email = jwtService.extractEmail(token);
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 userRepository.findByEmail(email).ifPresent(user -> {
-                    if (jwtService.isTokenValid(token, email)) {
+                    if (jwtService.isTokenValid(token, email) && !issuedBeforePasswordChange(token, user)) {
                         UserDetails principal = new UserPrincipal(user);
                         var authToken = new UsernamePasswordAuthenticationToken(
                                 principal, null, principal.getAuthorities());
@@ -59,5 +62,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /** JWT issue times have second precision, so compare against the change time truncated to the second. */
+    private boolean issuedBeforePasswordChange(String token, User user) {
+        Instant changedAt = user.getPasswordChangedAt();
+        return changedAt != null
+                && jwtService.extractIssuedAt(token).isBefore(changedAt.truncatedTo(ChronoUnit.SECONDS));
     }
 }

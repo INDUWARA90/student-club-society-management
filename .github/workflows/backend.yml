@@ -1,0 +1,230 @@
+name: Backend CI/CD
+
+# Runs only when backend code (or this workflow) changes, so a frontend-only change never waits on the backend
+# pipeline and vice versa. See docs/DEPLOYMENT.md for the one-time setup (secrets, variables, environments).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy this run to production after the tests pass (main branch only)"
+        type: boolean
+        default: false
+
+# One pipeline per branch. PR runs are cancelled when superseded; runs on main are queued, never cancelled,
+# so a deployment is not interrupted half-way.
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------------------------------------------------
+  test:
+    name: Test (unit + integration, MySQL 8.4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: club_management_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      # Integration tests run the real Flyway migrations against this dedicated database (never a shared one).
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      TEST_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/club_management_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Run all tests and package
+        run: |
+          chmod +x mvnw
+          ./mvnw -B --no-transfer-progress verify
+
+      - name: Test summary
+        if: always()
+        run: |
+          {
+            echo "### Backend tests"
+            total=0; failed=0; errors=0; skipped=0
+            for f in target/surefire-reports/*.txt; do
+              [ -e "$f" ] || continue
+              line=$(grep -m1 "Tests run:" "$f" || true)
+              t=$(echo "$line" | sed -E 's/.*Tests run: ([0-9]+).*/\1/'); total=$((total + ${t:-0}))
+              fl=$(echo "$line" | sed -E 's/.*Failures: ([0-9]+).*/\1/'); failed=$((failed + ${fl:-0}))
+              er=$(echo "$line" | sed -E 's/.*Errors: ([0-9]+).*/\1/'); errors=$((errors + ${er:-0}))
+              sk=$(echo "$line" | sed -E 's/.*Skipped: ([0-9]+).*/\1/'); skipped=$((skipped + ${sk:-0}))
+            done
+            echo "| Tests | Failures | Errors | Skipped |"
+            echo "|---|---|---|---|"
+            echo "| $total | $failed | $errors | $skipped |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: backend/target/surefire-reports
+          retention-days: 7
+
+  # ------------------------------------------------------------------------------------------------------------
+  image:
+    name: Build and publish container image
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the image name (GHCR needs lowercase)
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-backend" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan the image for known vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.name.outputs.image }}:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  # ------------------------------------------------------------------------------------------------------------
+  deploy:
+    name: Deploy to production (Render)
+    needs: image
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.deploy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Configure required reviewers on the "production" environment to add a manual approval gate.
+    environment:
+      name: production
+      url: ${{ vars.BACKEND_URL }}
+    # Never run two production deployments at once, and never cancel one that is in flight.
+    concurrency:
+      group: backend-production-deploy
+      cancel-in-progress: false
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      BACKEND_URL: ${{ vars.BACKEND_URL }}
+    steps:
+      - name: Check that deployment is configured
+        id: config
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ] || [ -z "$BACKEND_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Deployment skipped::Set the RENDER_DEPLOY_HOOK_URL secret and the BACKEND_URL variable on the 'production' environment (see docs/DEPLOYMENT.md). Tests and the image build still ran."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger the Render deploy for this commit
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          curl --fail --silent --show-error --max-time 30 -X POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}"
+          echo "Deploy requested for ${GITHUB_SHA}"
+
+      - name: Wait until this exact version reports healthy
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          # /api/health only answers 200 when the app can reach its database, and it reports the commit it runs.
+          # Render keeps serving the previous version until the new one passes its health check, so a bad release
+          # times out here (failing the job) without ever taking the site down.
+          for attempt in $(seq 1 90); do
+            body=$(curl --silent --max-time 10 "${BACKEND_URL%/}/api/health" || true)
+            if echo "$body" | grep -q "\"version\":\"${GITHUB_SHA}\"" && echo "$body" | grep -q '"status":"UP"'; then
+              echo "Healthy: $body"
+              exit 0
+            fi
+            echo "Attempt ${attempt}/90 - not the new version yet: ${body:-no response}"
+            sleep 10
+          done
+          echo "::error title=Deploy did not become healthy::The new version never reported healthy within 15 minutes. The previous version is still serving traffic; check the Render logs."
+          exit 1
+
+      - name: Smoke test the live API
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          # An unauthenticated call must be refused (401): proves security is active, not just that the port is open.
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 15 "${BACKEND_URL%/}/api/clubs")
+          echo "GET /api/clubs without a token -> ${code}"
+          [ "$code" = "401" ]
+          # Public endpoints stay public.
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 15 "${BACKEND_URL%/}/api/certificates/verify/pipeline-smoke-test")
+          echo "GET /api/certificates/verify/... -> ${code}"
+          [ "$code" = "200" ]
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          {
+            echo "### Backend deployment"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Configured: ${{ steps.config.outputs.configured }}"
+            echo "- Result: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,262 @@
+name: Frontend CI/CD
+
+# Runs only when frontend code (or this workflow) changes. See docs/DEPLOYMENT.md for the one-time setup.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy this run to production after the checks pass (main branch only)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------------------------------------------------
+  test:
+    name: Lint, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        env:
+          # The real API address is injected at deploy time; the build only has to succeed here.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://api.example.invalid/api' }}
+        run: npm run build
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  # ------------------------------------------------------------------------------------------------------------
+  preview:
+    name: Preview deployment (pull requests)
+    needs: test
+    # Forked PRs can't read secrets, so previews are only built for branches in this repository.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+    steps:
+      - name: Check that Vercel is configured
+        id: config
+        working-directory: .
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Preview skipped::Add the VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID secrets to get PR previews (docs/DEPLOYMENT.md)."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.configured == 'true'
+        with:
+          node-version: "22"
+
+      - name: Build and deploy a preview
+        id: deploy
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          npx --yes vercel@39 pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          npx --yes vercel@39 build --token="$VERCEL_TOKEN"
+          url=$(npx --yes vercel@39 deploy --prebuilt --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the preview link on the pull request
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- frontend-preview -->';
+            const body = `${marker}\n**Frontend preview:** ${process.env.PREVIEW_URL}\n\nBuilt from ${context.sha.slice(0, 7)}.`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body,
+              });
+            }
+
+  # ------------------------------------------------------------------------------------------------------------
+  deploy:
+    name: Deploy to production (Vercel)
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.deploy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Configure required reviewers on the "production" environment to add a manual approval gate.
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    concurrency:
+      group: frontend-production-deploy
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # Baked into the bundle at build time: the address of the deployed backend API (e.g. https://club-api.onrender.com/api).
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+    steps:
+      - name: Check that deployment is configured
+        id: config
+        working-directory: .
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ] || [ -z "$VITE_API_BASE_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Deployment skipped::Set the VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID secrets and the VITE_API_BASE_URL variable (docs/DEPLOYMENT.md). Lint, tests and build still ran."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.configured == 'true'
+        with:
+          node-version: "22"
+
+      - name: Build and deploy to production
+        id: deploy
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          npx --yes vercel@39 pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx --yes vercel@39 build --prod --token="$VERCEL_TOKEN"
+          url=$(npx --yes vercel@39 deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed: $url"
+
+      - name: Smoke test the live site
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          # Prefer the public production domain; fall back to the deployment URL.
+          target="${FRONTEND_URL:-${{ steps.deploy.outputs.url }}}"
+          echo "Checking ${target}"
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl --silent --location --output /tmp/index.html --write-out '%{http_code}' --max-time 15 "${target%/}/" || true)
+            [ "$code" = "200" ] && break
+            echo "attempt ${attempt}: got ${code}, retrying"; sleep 10
+          done
+          [ "$code" = "200" ]
+          grep -q 'id="root"' /tmp/index.html
+          # Deep links must fall back to the app (SPA rewrite), not 404.
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 15 "${target%/}/clubs/does-not-exist")
+          echo "deep link -> ${code}"
+          [ "$code" = "200" ]
+
+      - name: Deployment summary
+        if: always()
+        working-directory: .
+        run: |
+          {
+            echo "### Frontend deployment"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Configured: ${{ steps.config.outputs.configured }}"
+            echo "- URL: ${{ steps.deploy.outputs.url }}"
+            echo "- Result: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------------------------------------------------
+  image:
+    name: Publish container image (self-hosting)
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the image name (GHCR needs lowercase)
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-frontend" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ github.sha }}
+            ${{ steps.name.outputs.image }}:latest
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'http://localhost:5000/api' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

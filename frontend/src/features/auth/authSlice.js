@@ -9,6 +9,8 @@ const initialState = {
   user: storedUser ? JSON.parse(storedUser) : null,
   status: 'idle',
   error: null,
+  // Set when registration was accepted but no session was issued (email verification required).
+  registrationPending: false,
 }
 
 function persist(token, user) {
@@ -60,6 +62,49 @@ export const resetPassword = createAsyncThunk(
   },
 )
 
+export const verifyEmail = createAsyncThunk('auth/verifyEmail', async (token, { rejectWithValue }) => {
+  try {
+    await api.post('/auth/verify-email', { token })
+  } catch (error) {
+    return rejectWithValue(extractErrorMessage(error))
+  }
+})
+
+export const resendVerification = createAsyncThunk(
+  'auth/resendVerification',
+  async (_, { rejectWithValue }) => {
+    try {
+      await api.post('/auth/resend-verification')
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
+export const updateProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async (payload, { rejectWithValue }) => {
+    try {
+      const { data } = await api.put('/auth/me/profile', payload)
+      return data
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
+export const updateProfileImage = createAsyncThunk(
+  'auth/updateProfileImage',
+  async (profileImageB64, { rejectWithValue }) => {
+    try {
+      const { data } = await api.put('/auth/me/profile-image', { profileImageB64 })
+      return data
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -79,12 +124,18 @@ const authSlice = createSlice({
       .addCase(register.pending, (state) => {
         state.status = 'loading'
         state.error = null
+        state.registrationPending = false
       })
       .addCase(register.fulfilled, (state, action) => {
         state.status = 'succeeded'
-        state.token = action.payload.accessToken
-        state.user = action.payload.user
-        persist(action.payload.accessToken, action.payload.user)
+        if (action.payload.accessToken) {
+          state.token = action.payload.accessToken
+          state.user = action.payload.user
+          persist(action.payload.accessToken, action.payload.user)
+        } else {
+          // The server never says whether the address was new or already registered.
+          state.registrationPending = true
+        }
       })
       .addCase(register.rejected, (state, action) => {
         state.status = 'failed'
@@ -125,6 +176,14 @@ const authSlice = createSlice({
       .addCase(resetPassword.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.user = action.payload
+        localStorage.setItem('user', JSON.stringify(action.payload))
+      })
+      .addCase(updateProfileImage.fulfilled, (state, action) => {
+        state.user = action.payload
+        localStorage.setItem('user', JSON.stringify(action.payload))
       })
   },
 })

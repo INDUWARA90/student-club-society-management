@@ -57,4 +57,12 @@ public class Payment {
     @Column(name = "paid_at", nullable = false)
     @Builder.Default
     private Instant paidAt = Instant.now();
+
+    /** Set when the payment is refunded; refunded payments no longer count as income. */
+    @Column(name = "refunded_at")
+    private Instant refundedAt;
+
+    public boolean isRefunded() {
+        return refundedAt != null;
+    }
 }

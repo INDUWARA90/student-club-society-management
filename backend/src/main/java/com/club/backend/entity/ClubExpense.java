@@ -48,6 +48,14 @@ public class ClubExpense {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
 
+    @Column(length = 50)
+    private String category;
+
+    /** Optional link to the event this expense was for. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    private Event event;
+
     @Column(name = "expense_date", nullable = false)
     @Builder.Default
     private LocalDate expenseDate = LocalDate.now();

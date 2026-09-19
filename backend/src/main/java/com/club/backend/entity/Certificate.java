@@ -41,6 +41,10 @@ public class Certificate {
     @JoinColumn(name = "club_id", nullable = false)
     private Club club;
 
+    /** Public code printed on the PDF so anyone can verify the certificate is genuine. */
+    @Column(name = "verification_code", unique = true, length = 36)
+    private String verificationCode;
+
     @Column(name = "issued_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant issuedAt = Instant.now();

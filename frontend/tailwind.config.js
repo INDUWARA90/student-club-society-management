@@ -24,9 +24,15 @@ export default {
           50: '#EEF2FF',
           100: '#E0E7FF',
           300: '#A5B4FC',
+          400: '#818CF8',
           500: '#6366F1',
           600: '#4F46E5',
           700: '#4338CA',
+          800: '#3730A3',
+        },
+        accent: {
+          400: '#C084FC',
+          500: '#A855F7',
         },
 
         role: {
@@ -51,6 +57,11 @@ export default {
         card: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06)',
         'card-hover': '0 2px 4px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.10)',
         sidebar: '1px 0 0 rgba(0,0,0,0.05)',
+        glow: '0 0 0 4px rgba(99,102,241,0.12)',
+      },
+      backgroundImage: {
+        'brand-gradient': 'linear-gradient(135deg, #4F46E5 0%, #6366F1 50%, #A855F7 100%)',
+        'brand-gradient-soft': 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(168,85,247,0.10) 100%)',
       },
       transitionDuration: {
         fast: '120ms',

@@ -3,6 +3,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import { useToast } from '../components/ToastProvider'
+import Button from '../components/ui/Button'
+import PageHeader from '../components/ui/PageHeader'
 import { logout, updateProfile, updateProfileImage } from '../features/auth/authSlice'
 import { fileToBase64 } from '../utils/fileToBase64'
 
@@ -17,6 +19,9 @@ function ProfilePage() {
   const [uploading, setUploading] = useState(false)
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
+  const [graduationYear, setGraduationYear] = useState(user?.graduationYear ? String(user.graduationYear) : '')
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(user?.emailNotificationsEnabled ?? true)
+  const [emailDigestEnabled, setEmailDigestEnabled] = useState(user?.emailDigestEnabled ?? false)
   const [profileError, setProfileError] = useState(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -33,7 +38,15 @@ function ProfilePage() {
     }
     const emailChanged = email.trim().toLowerCase() !== user?.email
     setSavingProfile(true)
-    const result = await dispatch(updateProfile({ name, email }))
+    const result = await dispatch(
+      updateProfile({
+        name,
+        email,
+        graduationYear: graduationYear ? Number(graduationYear) : null,
+        emailNotificationsEnabled,
+        emailDigestEnabled,
+      }),
+    )
     setSavingProfile(false)
     if (updateProfile.fulfilled.match(result)) {
       if (emailChanged) {
@@ -72,7 +85,9 @@ function ProfilePage() {
     }
     setChangingPassword(true)
     try {
-      await api.put('/auth/me/password', { currentPassword, newPassword })
+      const { data } = await api.put('/auth/me/password', { currentPassword, newPassword })
+      // Changing the password signs out every other session; keep this one alive with the fresh token.
+      if (data?.accessToken) localStorage.setItem('accessToken', data.accessToken)
       setCurrentPassword('')
       setNewPassword('')
       showToast('Password changed')
@@ -87,7 +102,7 @@ function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-2xl p-4 md:p-8">
-      <h1 className="text-2xl font-semibold text-ink dark:text-ink-dark">Your profile</h1>
+      <PageHeader title="Your profile" />
 
       <div className="mt-6 flex items-center gap-4">
         {user?.profileImageB64 ? (
@@ -129,14 +144,41 @@ function ProfilePage() {
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="profile-grad-year">
+            Graduation year (optional)
+          </label>
+          <input
+            id="profile-grad-year"
+            type="number"
+            min="1950"
+            max="2100"
+            className={inputClass}
+            value={graduationYear}
+            onChange={(e) => setGraduationYear(e.target.value)}
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-ink dark:text-ink-dark">
+          <input
+            type="checkbox"
+            checked={emailNotificationsEnabled}
+            onChange={(e) => setEmailNotificationsEnabled(e.target.checked)}
+          />
+          Email me my notifications (in-app notifications are always kept)
+        </label>
+        <label className="ml-6 flex items-center gap-2 text-sm text-ink dark:text-ink-dark">
+          <input
+            type="checkbox"
+            checked={emailDigestEnabled}
+            disabled={!emailNotificationsEnabled}
+            onChange={(e) => setEmailDigestEnabled(e.target.checked)}
+          />
+          Send one daily digest instead of an email for each notification
+        </label>
         {profileError && <p className="text-sm text-danger">{profileError}</p>}
-        <button
-          type="submit"
-          disabled={savingProfile}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
-        >
+        <Button type="submit" loading={savingProfile}>
           {savingProfile ? 'Saving…' : 'Save changes'}
-        </button>
+        </Button>
       </form>
 
       <div className="mt-6">
@@ -180,13 +222,9 @@ function ProfilePage() {
           />
         </div>
         {passwordError && <p className="text-sm text-danger">{passwordError}</p>}
-        <button
-          type="submit"
-          disabled={changingPassword}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
-        >
+        <Button type="submit" loading={changingPassword}>
           {changingPassword ? 'Changing…' : 'Change password'}
-        </button>
+        </Button>
       </form>
     </div>
   )

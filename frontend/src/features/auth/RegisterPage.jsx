@@ -13,7 +13,7 @@ function RegisterPage() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { showToast } = useToast()
-  const { status, error } = useSelector((state) => state.auth)
+  const { status, error, registrationPending } = useSelector((state) => state.auth)
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -34,10 +34,26 @@ function RegisterPage() {
     if (!isValid) return
 
     const result = await dispatch(register({ name, email, password }))
-    if (register.fulfilled.match(result)) {
+    if (register.fulfilled.match(result) && result.payload.accessToken) {
       showToast('Welcome! Check your email to verify your account.')
       navigate('/')
     }
+  }
+
+  if (registrationPending) {
+    return (
+      <AuthCard title="Check your email" subtitle="One more step">
+        <p className="text-center text-sm text-ink dark:text-ink-dark">
+          If <span className="font-medium">{email}</span> can be used for a new account, we've sent a link to finish
+          creating it. If you already have an account, we've emailed you about that instead.
+        </p>
+        <p className="mt-4 text-center text-sm text-ink-muted dark:text-ink-dark-muted">
+          <Link className="text-brand-600 hover:underline" to="/login">
+            Back to log in
+          </Link>
+        </p>
+      </AuthCard>
+    )
   }
 
   return (

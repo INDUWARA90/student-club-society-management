@@ -1,18 +1,21 @@
-import { LogOut, Pencil, Plus, UserPlus, Users } from 'lucide-react'
+import { Archive, LogOut, Pencil, Plus, UserMinus, UserPlus, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../api/axios'
 import Breadcrumbs from '../../components/Breadcrumbs'
 import { useToast } from '../../components/ToastProvider'
+import Card from '../../components/ui/Card'
 import CreateEventModal from '../events/CreateEventModal'
 import { joinClub } from './clubsSlice'
 import AnnouncementComments from './AnnouncementComments'
+import ClubResources from './ClubResources'
 import CreateClubModal from './CreateClubModal'
 import LogExpenseModal from './LogExpenseModal'
 
 const OFFICER_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
 const LEDGER_POSITIONS = ['PRESIDENT', 'TREASURER']
+const RECORDS_POSITIONS = ['PRESIDENT', 'SECRETARY']
 const ALL_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER', 'MEMBER']
 
 function ClubDetailPage() {
@@ -28,6 +31,7 @@ function ClubDetailPage() {
   const [events, setEvents] = useState([])
   const [stats, setStats] = useState(null)
   const [ledger, setLedger] = useState(null)
+  const [reports, setReports] = useState([])
   const [joinStatus, setJoinStatus] = useState(null)
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [showLogExpense, setShowLogExpense] = useState(false)
@@ -47,6 +51,7 @@ function ClubDetailPage() {
   const myMembership = members.find((m) => m.userId === user?.id)
   const isOfficer = OFFICER_POSITIONS.includes(myMembership?.position)
   const canManageLedger = LEDGER_POSITIONS.includes(myMembership?.position)
+  const canManageRecords = RECORDS_POSITIONS.includes(myMembership?.position)
   const isPresident = myMembership?.position === 'PRESIDENT'
   const effectiveMembershipStatus =
     joinStatus === 'LEFT' ? null : joinStatus || (myMembership ? 'APPROVED' : pendingRequests.some((p) => p.userId === user?.id) ? 'PENDING' : null)
@@ -56,7 +61,49 @@ function ClubDetailPage() {
     api.get(`/clubs/${clubId}/expenses/ledger`).then((res) => setLedger(res.data)).catch(() => {})
   }, [clubId, canManageLedger])
 
+  useEffect(() => {
+    if (!isPresident) return
+    api.get(`/clubs/${clubId}/comment-reports`).then((res) => setReports(res.data)).catch(() => {})
+  }, [clubId, isPresident])
+
+  async function handleResolveReport(reportId, action) {
+    if (action === 'DELETE_COMMENT' && !window.confirm('Remove this comment for everyone?')) return
+    try {
+      await api.post(`/clubs/${clubId}/comment-reports/${reportId}/resolve`, { action })
+      setReports((prev) => prev.filter((r) => r.id !== reportId))
+      showToast(action === 'DELETE_COMMENT' ? 'Comment removed' : 'Report dismissed')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
+  async function handleClaimPresidency() {
+    if (!window.confirm('Take over as President? This only works once the current President has been marked as graduated.')) return
+    try {
+      await api.post(`/clubs/${clubId}/claim-presidency`)
+      const res = await api.get(`/clubs/${clubId}/members`)
+      setMembers(res.data)
+      showToast('You are now the President')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
   async function handleJoin() {
+    const fee = Number(club.membershipFee) || 0
+    if (fee > 0) {
+      // The fee is paid up front (it is refunded if the request is rejected or withdrawn).
+      if (!window.confirm(`This club charges a membership fee of ${fee}. Pay it and join?`)) return
+      try {
+        await api.post('/payments', { type: 'MEMBERSHIP', referenceId: clubId, amount: fee })
+      } catch (e) {
+        // 409 means the fee was already paid earlier (e.g. a previous join attempt failed) — carry on and join.
+        if (e.response?.status !== 409) {
+          showToast(e.response?.data?.message || 'Payment failed', 'error')
+          return
+        }
+      }
+    }
     const result = await dispatch(joinClub(clubId))
     if (joinClub.fulfilled.match(result)) {
       setJoinStatus(result.payload.status)
@@ -73,6 +120,29 @@ function ClubDetailPage() {
       const res = await api.get(`/clubs/${clubId}/members`)
       setMembers(res.data)
       showToast('You left the club')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
+  async function handleArchiveClub() {
+    if (!window.confirm('Archive this club? It is hidden from browsing, upcoming events are cancelled (paid fees refunded) and members are notified.')) return
+    try {
+      const { data } = await api.post(`/clubs/${clubId}/archive`)
+      setClub(data)
+      showToast('Club archived')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
+  async function handleRemoveMember(membershipId, name) {
+    if (!window.confirm(`Remove ${name} from the club?`)) return
+    try {
+      await api.delete(`/memberships/${membershipId}`)
+      const res = await api.get(`/clubs/${clubId}/members`)
+      setMembers(res.data)
+      showToast('Member removed')
     } catch (e) {
       showToast(e.response?.data?.message || 'Something went wrong', 'error')
     }
@@ -204,6 +274,26 @@ function ClubDetailPage() {
               Edit club
             </button>
           )}
+          {isPresident && !club.archived && (
+            <button
+              type="button"
+              onClick={handleArchiveClub}
+              className="flex items-center gap-1.5 rounded-md border border-danger px-4 py-2 text-sm font-medium text-danger transition-fast hover:bg-danger/10"
+            >
+              <Archive className="h-4 w-4" />
+              Archive club
+            </button>
+          )}
+          {isOfficer && !isPresident && (
+            <button
+              type="button"
+              onClick={handleClaimPresidency}
+              title="Available when the current President has graduated"
+              className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            >
+              Claim presidency
+            </button>
+          )}
           {effectiveMembershipStatus === 'APPROVED' && !isPresident && (
             <button
               type="button"
@@ -214,7 +304,7 @@ function ClubDetailPage() {
               Leave club
             </button>
           )}
-          {effectiveMembershipStatus !== 'APPROVED' && (
+          {effectiveMembershipStatus !== 'APPROVED' && !club.archived && (
             <button
               type="button"
               onClick={handleJoin}
@@ -222,12 +312,21 @@ function ClubDetailPage() {
               className="flex items-center gap-1.5 rounded-md bg-brand-gradient px-4 py-2 text-sm font-medium text-white shadow-card transition-fast hover:brightness-110 hover:shadow-card-hover disabled:opacity-60"
             >
               <UserPlus className="h-4 w-4" />
-              {effectiveMembershipStatus === 'PENDING' ? 'Request pending' : 'Join club'}
+              {effectiveMembershipStatus === 'PENDING'
+                ? 'Request pending'
+                : Number(club.membershipFee) > 0
+                  ? `Join club (fee ${club.membershipFee})`
+                  : 'Join club'}
             </button>
           )}
         </div>
       </div>
 
+      {club.archived && (
+        <p className="mt-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+          This club is archived — it no longer accepts members or events.
+        </p>
+      )}
       <p className="mt-4 text-sm text-ink-muted dark:text-ink-dark-muted">
         {club.description || 'No description yet.'}
       </p>
@@ -240,14 +339,14 @@ function ClubDetailPage() {
               ['Events', stats.eventCount],
               ['RSVPs', stats.totalRsvps],
               ['Attendance', stats.totalAttendance],
+              ['Income', stats.totalIncome],
+              ['Expenses', stats.totalExpenses],
+              ['Balance', stats.balance],
             ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-xl border border-border bg-surface p-3 text-center shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
-              >
+              <Card key={label} interactive={false} className="text-center">
                 <p className="text-xl font-semibold text-ink dark:text-ink-dark">{value}</p>
                 <p className="text-xs text-ink-muted dark:text-ink-dark-muted">{label}</p>
-              </div>
+              </Card>
             ))}
           </div>
           <div className="mt-2 flex gap-3">
@@ -306,16 +405,12 @@ function ClubDetailPage() {
         )}
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {events.map((e) => (
-            <Link
-              key={e.id}
-              to={`/events/${e.id}`}
-              className="rounded-xl border border-border bg-surface p-3 shadow-card transition-fast hover:-translate-y-0.5 hover:shadow-card-hover dark:border-border-dark dark:bg-surface-dark-muted"
-            >
+            <Card key={e.id} to={`/events/${e.id}`}>
               <p className="text-sm font-medium text-ink dark:text-ink-dark">{e.title}</p>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 {new Date(e.eventDate).toLocaleDateString()}
               </p>
-            </Link>
+            </Card>
           ))}
         </div>
       </section>
@@ -368,6 +463,45 @@ function ClubDetailPage() {
         </div>
       </section>
 
+      <ClubResources clubId={clubId} isOfficer={isOfficer} isPresident={isPresident} />
+
+      {isPresident && reports.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Reported comments ({reports.length})</h2>
+          <div className="mt-3 space-y-2">
+            {reports.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-xl border border-border bg-surface p-3 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
+              >
+                <p className="text-sm text-ink dark:text-ink-dark">
+                  <span className="font-medium">{r.commentAuthorName}:</span> {r.commentContent}
+                </p>
+                <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">
+                  Reported by {r.reporterName}: {r.reason}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleResolveReport(r.id, 'DISMISS')}
+                    className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleResolveReport(r.id, 'DELETE_COMMENT')}
+                    className="rounded-md bg-danger px-3 py-1 text-xs font-medium text-white transition-fast hover:opacity-90"
+                  >
+                    Remove comment
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {pendingRequests.length > 0 && (
         <section className="mt-8">
           <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">
@@ -409,13 +543,16 @@ function ClubDetailPage() {
             Members ({members.length})
           </h2>
           <div className="flex items-center gap-3">
-            {isPresident && (
+            <Link to={`/clubs/${clubId}/members`} className="text-xs text-brand-600 hover:underline">
+              View directory
+            </Link>
+            {canManageRecords && (
               <label className="cursor-pointer text-xs text-brand-600 hover:underline">
                 Import CSV
                 <input type="file" accept=".csv,text/csv" onChange={handleImportMembers} className="hidden" />
               </label>
             )}
-            {isOfficer && (
+            {canManageRecords && (
               <button
                 type="button"
                 onClick={() => {
@@ -459,6 +596,17 @@ function ClubDetailPage() {
                   {m.position}
                 </span>
               )}
+              {isPresident && m.position !== 'PRESIDENT' && (
+                <button
+                  type="button"
+                  title="Remove from club"
+                  aria-label={`Remove ${m.userName}`}
+                  onClick={() => handleRemoveMember(m.id, m.userName)}
+                  className="ml-2 rounded-md p-1 text-ink-muted transition-fast hover:bg-danger/10 hover:text-danger"
+                >
+                  <UserMinus className="h-4 w-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -479,6 +627,10 @@ function ClubDetailPage() {
           </div>
           <div className="mt-3 flex gap-3">
             <div className="flex-1 rounded-xl border border-border bg-surface p-3 text-center shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
+              <p className="text-xl font-semibold text-ink dark:text-ink-dark">{ledger.totalIncome}</p>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">Total income</p>
+            </div>
+            <div className="flex-1 rounded-xl border border-border bg-surface p-3 text-center shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
               <p className="text-xl font-semibold text-ink dark:text-ink-dark">{ledger.totalExpenses}</p>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted">Total expenses</p>
             </div>
@@ -487,6 +639,34 @@ function ClubDetailPage() {
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted">Balance</p>
             </div>
           </div>
+          {ledger.eventBudgets?.length > 0 && (
+            <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
+              <table className="w-full text-left text-xs">
+                <thead className="text-ink-muted dark:text-ink-dark-muted">
+                  <tr>
+                    <th className="p-2 font-medium">Event</th>
+                    <th className="p-2 font-medium">Budget</th>
+                    <th className="p-2 font-medium">Spent</th>
+                    <th className="p-2 font-medium">Left</th>
+                    <th className="p-2 font-medium">Fees in</th>
+                  </tr>
+                </thead>
+                <tbody className="text-ink dark:text-ink-dark">
+                  {ledger.eventBudgets.map((b) => (
+                    <tr key={b.eventId} className="border-t border-border dark:border-border-dark">
+                      <td className="p-2">{b.title}</td>
+                      <td className="p-2">{b.budget ?? '—'}</td>
+                      <td className="p-2">{b.spent}</td>
+                      <td className={`p-2 ${b.remaining != null && Number(b.remaining) < 0 ? 'text-danger' : ''}`}>
+                        {b.remaining ?? '—'}
+                      </td>
+                      <td className="p-2">{b.income}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           {ledger.expenses.length === 0 && (
             <p className="mt-3 text-sm text-ink-muted dark:text-ink-dark-muted">No expenses logged yet.</p>
           )}

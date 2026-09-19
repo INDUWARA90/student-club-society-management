@@ -60,4 +60,40 @@ describe('CreateClubModal', () => {
 
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('sends the membership fee and certificate threshold with the club', async () => {
+    const axios = (await import('../../api/axios')).default
+    axios.post.mockResolvedValueOnce({
+      data: { id: 'c2', name: 'Robotics', category: 'Tech', status: 'PENDING' },
+    })
+    renderWithProviders(<CreateClubModal onClose={vi.fn()} onCreated={vi.fn()} />)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText(/^name$/i), 'Robotics')
+    await user.type(screen.getByLabelText(/category/i), 'Tech')
+    await user.clear(screen.getByLabelText(/membership fee/i))
+    await user.type(screen.getByLabelText(/membership fee/i), '50')
+    await user.clear(screen.getByLabelText(/events for certificate/i))
+    await user.type(screen.getByLabelText(/events for certificate/i), '5')
+    await user.click(screen.getByRole('button', { name: /create club/i }))
+
+    await waitFor(() =>
+      expect(axios.post).toHaveBeenLastCalledWith(
+        '/clubs',
+        expect.objectContaining({ name: 'Robotics', membershipFee: 50, certificateThreshold: 5 }),
+      ),
+    )
+  })
+
+  it('pre-fills the fee and threshold when editing an existing club', () => {
+    renderWithProviders(
+      <CreateClubModal
+        club={{ id: 'c1', name: 'Chess', category: 'Games', joinPolicy: 'OPEN', membershipFee: 120, certificateThreshold: 4 }}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText(/membership fee/i)).toHaveValue(120)
+    expect(screen.getByLabelText(/events for certificate/i)).toHaveValue(4)
+  })
 })

@@ -67,4 +67,22 @@ describe('RegisterPage', () => {
       password: 'password123',
     })
   })
+
+  it('shows a neutral check-your-email screen when the server issues no session', async () => {
+    localStorage.clear() // an earlier test signed in
+    const axios = (await import('../../api/axios')).default
+    // Verification required: the API answers 202 with just a message, whether or not the address was taken.
+    axios.post.mockResolvedValueOnce({ data: { message: 'Check your email to finish creating your account.' } })
+    renderWithProviders(<RegisterPage />)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText(/name/i), 'Ada')
+    await user.type(screen.getByLabelText(/email/i), 'ada@example.com')
+    await user.type(screen.getByLabelText(/password/i), 'password123')
+    await user.click(screen.getByRole('button', { name: /register/i }))
+
+    expect(await screen.findByText(/check your email/i, { selector: 'h1, h2, h3, div, p' })).toBeInTheDocument()
+    expect(screen.getByText(/if you already have an account/i)).toBeInTheDocument()
+    expect(localStorage.getItem('accessToken')).toBeNull()
+  })
 })

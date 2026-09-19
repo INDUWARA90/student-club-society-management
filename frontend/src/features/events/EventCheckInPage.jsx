@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
 
 function EventCheckInPage() {
   const { eventId } = useParams()
+  const [searchParams] = useSearchParams()
+  const token = searchParams.get('t')
   const [status, setStatus] = useState('checking')
   const [message, setMessage] = useState('Checking you in…')
   const [eventTitle, setEventTitle] = useState('')
@@ -13,7 +15,7 @@ function EventCheckInPage() {
       try {
         const { data: event } = await api.get(`/events/${eventId}`)
         setEventTitle(event.title)
-        await api.post(`/events/${eventId}/attendance/qr-check-in`)
+        await api.post(`/events/${eventId}/attendance/qr-check-in`, null, { params: { token } })
         setStatus('success')
         setMessage('You are checked in!')
       } catch (e) {
@@ -22,7 +24,7 @@ function EventCheckInPage() {
       }
     }
     checkIn()
-  }, [eventId])
+  }, [eventId, token])
 
   return (
     <div className="mx-auto flex min-h-svh max-w-md flex-col items-center justify-center p-6 text-center">

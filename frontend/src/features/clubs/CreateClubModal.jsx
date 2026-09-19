@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useToast } from '../../components/ToastProvider'
+import Button from '../../components/ui/Button'
+import Modal from '../../components/ui/Modal'
 import { fileToBase64 } from '../../utils/fileToBase64'
 import { createClub, updateClub } from './clubsSlice'
 
@@ -16,6 +18,8 @@ function CreateClubModal({ club, onClose, onCreated }) {
   const [description, setDescription] = useState(club?.description || '')
   const [joinPolicy, setJoinPolicy] = useState(club?.joinPolicy || 'OPEN')
   const [logoB64, setLogoB64] = useState(club?.logoB64 || null)
+  const [membershipFee, setMembershipFee] = useState(String(club?.membershipFee ?? 0))
+  const [certificateThreshold, setCertificateThreshold] = useState(String(club?.certificateThreshold ?? 3))
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -32,7 +36,15 @@ function CreateClubModal({ club, onClose, onCreated }) {
       return
     }
     setSubmitting(true)
-    const payload = { name, category, description, joinPolicy, logoB64 }
+    const payload = {
+      name,
+      category,
+      description,
+      joinPolicy,
+      logoB64,
+      membershipFee: Number(membershipFee) || 0,
+      certificateThreshold: Number(certificateThreshold) || 3,
+    }
     const result = isEdit
       ? await dispatch(updateClub({ clubId: club.id, payload }))
       : await dispatch(createClub(payload))
@@ -50,10 +62,8 @@ function CreateClubModal({ club, onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-card dark:border-border-dark dark:bg-surface-dark-muted">
-        <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">{isEdit ? 'Edit club' : 'Create a club'}</h2>
-        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
+    <Modal title={isEdit ? 'Edit club' : 'Create a club'} onClose={onClose}>
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-name">Name</label>
             <input id="club-name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
@@ -91,27 +101,47 @@ function CreateClubModal({ club, onClose, onCreated }) {
             </select>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-fee">Membership fee</label>
+              <input
+                id="club-fee"
+                type="number"
+                min="0"
+                step="0.01"
+                className={inputClass}
+                value={membershipFee}
+                onChange={(e) => setMembershipFee(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">0 = free to join</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-cert-threshold">Events for certificate</label>
+              <input
+                id="club-cert-threshold"
+                type="number"
+                min="1"
+                max="100"
+                className={inputClass}
+                value={certificateThreshold}
+                onChange={(e) => setCertificateThreshold(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">Attended events to earn one</p>
+            </div>
+          </div>
+
           {error && <p className="text-sm text-danger">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-fast hover:bg-surface-muted dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
-            >
+            <Button variant="secondary" type="button" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-fast hover:bg-brand-700 disabled:opacity-60"
-            >
+            </Button>
+            <Button type="submit" loading={submitting}>
               {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create club'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 

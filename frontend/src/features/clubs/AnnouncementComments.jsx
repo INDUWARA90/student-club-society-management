@@ -36,6 +36,20 @@ function AnnouncementComments({ clubId, announcementId, isPresident }) {
     }
   }
 
+  async function handleReport(commentId) {
+    const reason = window.prompt('Why are you reporting this comment? The Club Admin will review it.')
+    if (!reason || !reason.trim()) return
+    try {
+      await api.post(
+        `/clubs/${clubId}/announcements/${announcementId}/comments/${commentId}/report`,
+        { reason: reason.trim() },
+      )
+      showToast('Thanks — the Club Admin has been told')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
   async function handleDelete(commentId) {
     try {
       await api.delete(`/clubs/${clubId}/announcements/${announcementId}/comments/${commentId}`)
@@ -61,15 +75,26 @@ function AnnouncementComments({ clubId, announcementId, isPresident }) {
               <p className="text-xs text-ink dark:text-ink-dark">
                 <span className="font-medium">{c.authorName}:</span> {c.content}
               </p>
-              {(c.authorId === user?.id || isPresident) && (
-                <button
-                  type="button"
-                  onClick={() => handleDelete(c.id)}
-                  className="shrink-0 text-xs text-danger hover:underline"
-                >
-                  Delete
-                </button>
-              )}
+              <div className="flex shrink-0 gap-2">
+                {c.authorId !== user?.id && (
+                  <button
+                    type="button"
+                    onClick={() => handleReport(c.id)}
+                    className="text-xs text-ink-muted hover:underline dark:text-ink-dark-muted"
+                  >
+                    Report
+                  </button>
+                )}
+                {(c.authorId === user?.id || isPresident) && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(c.id)}
+                    className="text-xs text-danger hover:underline"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
           ))}
           <form onSubmit={handlePost} className="flex gap-2 pt-1">

@@ -1,6 +1,11 @@
+import { CheckCircle2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api from '../../api/axios'
 import { useToast } from '../../components/ToastProvider'
+import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
+import EmptyState from '../../components/ui/EmptyState'
+import PageHeader from '../../components/ui/PageHeader'
 
 function PendingEventsPage() {
   const { showToast } = useToast()
@@ -16,8 +21,13 @@ function PendingEventsPage() {
   }
 
   async function review(eventId, approve) {
+    let reason
+    if (!approve) {
+      reason = window.prompt('Reason for rejecting (shown to the club, optional):')
+      if (reason === null) return
+    }
     try {
-      await api.post(`/events/${eventId}/${approve ? 'approve' : 'reject'}`)
+      await api.post(`/events/${eventId}/${approve ? 'approve' : 'reject'}`, approve ? undefined : { reason })
       setEvents((prev) => prev.filter((e) => e.id !== eventId))
       showToast(approve ? 'Event approved' : 'Event rejected')
     } catch (e) {
@@ -29,19 +39,16 @@ function PendingEventsPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
-      <h1 className="text-2xl font-semibold text-ink dark:text-ink-dark">Pending event approvals</h1>
+      <PageHeader title="Pending event approvals" />
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
 
       {events.length === 0 && (
-        <p className="mt-6 text-sm text-ink-muted dark:text-ink-dark-muted">No events awaiting approval.</p>
+        <EmptyState icon={CheckCircle2} description="No events awaiting approval." />
       )}
 
       <div className="mt-6 space-y-3">
         {events.map((event) => (
-          <div
-            key={event.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 shadow-card dark:border-border-dark dark:bg-surface-dark-muted"
-          >
+          <Card key={event.id} interactive={false} className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-ink dark:text-ink-dark">{event.title}</h2>
               <p className="text-sm text-ink-muted dark:text-ink-dark-muted">
@@ -49,22 +56,14 @@ function PendingEventsPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => review(event.id, true)}
-                className="rounded-md bg-success px-3 py-1.5 text-sm font-medium text-white transition-fast hover:opacity-90"
-              >
+              <Button variant="success" size="sm" onClick={() => review(event.id, true)}>
                 Approve
-              </button>
-              <button
-                type="button"
-                onClick={() => review(event.id, false)}
-                className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white transition-fast hover:opacity-90"
-              >
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => review(event.id, false)}>
                 Reject
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

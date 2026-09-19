@@ -19,4 +19,6 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     long countByUserIdAndEvent_Club_Id(UUID userId, UUID clubId);
 
     long countByEvent_Club_Id(UUID clubId);
+
+    long countByEventId(UUID eventId);
 }

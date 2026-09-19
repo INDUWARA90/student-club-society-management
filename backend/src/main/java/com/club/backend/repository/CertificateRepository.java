@@ -13,4 +13,6 @@ public interface CertificateRepository extends JpaRepository<Certificate, UUID> 
     Optional<Certificate> findByUserIdAndClubId(UUID userId, UUID clubId);
 
     List<Certificate> findByUserId(UUID userId);
+
+    Optional<Certificate> findByVerificationCode(String verificationCode);
 }

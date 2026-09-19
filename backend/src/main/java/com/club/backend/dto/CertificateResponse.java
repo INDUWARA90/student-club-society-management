@@ -5,7 +5,8 @@ import java.util.UUID;
 
 import com.club.backend.entity.Certificate;
 
-public record CertificateResponse(UUID id, UUID userId, UUID clubId, String clubName, Instant issuedAt) {
+public record CertificateResponse(UUID id, UUID userId, UUID clubId, String clubName, Instant issuedAt,
+        String verificationCode) {
 
     public static CertificateResponse from(Certificate certificate) {
         return new CertificateResponse(
@@ -13,6 +14,7 @@ public record CertificateResponse(UUID id, UUID userId, UUID clubId, String club
                 certificate.getUser().getId(),
                 certificate.getClub().getId(),
                 certificate.getClub().getName(),
-                certificate.getIssuedAt());
+                certificate.getIssuedAt(),
+                certificate.getVerificationCode());
     }
 }

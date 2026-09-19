@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.club.backend.dto.AttendanceResponse;
@@ -34,12 +35,13 @@ public class AttendanceController {
 
     @PostMapping("/qr-check-in")
     public ResponseEntity<AttendanceResponse> checkInViaQr(@PathVariable UUID eventId,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(attendanceService.checkInViaQr(eventId, principal));
+            @RequestParam(required = false) String token, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(attendanceService.checkInViaQr(eventId, token, principal));
     }
 
     @GetMapping
-    public ResponseEntity<List<AttendanceResponse>> listAttendance(@PathVariable UUID eventId) {
-        return ResponseEntity.ok(attendanceService.listAttendance(eventId));
+    public ResponseEntity<List<AttendanceResponse>> listAttendance(@PathVariable UUID eventId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(attendanceService.listAttendance(eventId, principal));
     }
 }

@@ -14,7 +14,8 @@ public record PaymentResponse(
         UUID referenceId,
         BigDecimal amount,
         PaymentStatus status,
-        Instant paidAt) {
+        Instant paidAt,
+        Instant refundedAt) {
 
     public static PaymentResponse from(Payment payment) {
         return new PaymentResponse(
@@ -23,6 +24,7 @@ public record PaymentResponse(
                 payment.getReferenceId(),
                 payment.getAmount(),
                 payment.getStatus(),
-                payment.getPaidAt());
+                payment.getPaidAt(),
+                payment.getRefundedAt());
     }
 }

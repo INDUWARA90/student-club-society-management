@@ -1,5 +1,6 @@
 package com.club.backend.controller;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -8,8 +9,10 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.club.backend.dto.ClubExpenseResponse;
@@ -34,8 +37,16 @@ public class ClubExpenseController {
     }
 
     @GetMapping("/ledger")
-    public ResponseEntity<ClubLedgerResponse> getLedger(@PathVariable UUID clubId) {
-        return ResponseEntity.ok(expenseService.getLedger(clubId));
+    public ResponseEntity<ClubLedgerResponse> getLedger(@PathVariable UUID clubId,
+            @RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(expenseService.getLedger(clubId, from, to, principal));
+    }
+
+    @PutMapping("/{expenseId}")
+    public ResponseEntity<ClubExpenseResponse> updateExpense(@PathVariable UUID clubId, @PathVariable UUID expenseId,
+            @RequestBody CreateExpenseRequest request, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(expenseService.updateExpense(clubId, expenseId, request, principal));
     }
 
     @DeleteMapping("/{expenseId}")

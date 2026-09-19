@@ -15,7 +15,10 @@ public record ClubExpenseResponse(
         String description,
         BigDecimal amount,
         LocalDate expenseDate,
-        Instant createdAt) {
+        Instant createdAt,
+        String category,
+        UUID eventId,
+        String eventTitle) {
 
     public static ClubExpenseResponse from(ClubExpense expense) {
         return new ClubExpenseResponse(
@@ -26,6 +29,9 @@ public record ClubExpenseResponse(
                 expense.getDescription(),
                 expense.getAmount(),
                 expense.getExpenseDate(),
-                expense.getCreatedAt());
+                expense.getCreatedAt(),
+                expense.getCategory(),
+                expense.getEvent() != null ? expense.getEvent().getId() : null,
+                expense.getEvent() != null ? expense.getEvent().getTitle() : null);
     }
 }

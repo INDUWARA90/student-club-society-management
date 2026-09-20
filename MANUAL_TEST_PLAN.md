@@ -603,7 +603,7 @@ For every write endpoint above, also explicitly re-test as:
 |---|---|---|---|
 | 26.1 | No demo accounts in production | Start the `prod` profile against an empty database with `SEED_DEMO_DATA` unset | ✅ No users or clubs are created — in particular no `superadmin@example.com` / `password123`. (Before, the seeder ran on any empty DB.) The local `docker-compose.yml` sets `SEED_DEMO_DATA=true` so the demo stack still loads demo data |
 | 26.2 | Bootstrap the first admin | Empty DB, seeding off, set `BOOTSTRAP_ADMIN_EMAIL` and a 12+ character `BOOTSTRAP_ADMIN_PASSWORD`; start twice | ✅ One verified Super Admin is created on the first start; the second start creates nothing. A shorter password logs an error and creates nothing; an email that already belongs to a non-admin is refused |
-| 26.3 | Schema management (Flyway) | Start the backend against (a) an empty database, (b) a database created by the old `ddl-auto=update` builds (no Flyway history), (c) a database Hibernate already upgraded to the newest entities | ✅ (a) V1→V2→V3 applied in order; (b) baselined at V1 (its existing data is kept) then V2→V3 applied — including the venue/resource/comment tables and columns an older DB lacks; (c) baselined then V2/V3 run as harmless no-ops; in every case Hibernate `validate` passes. Verified against a clone of the real dev database (rows and Presidents preserved) |
+| 26.3 | Schema management (Flyway) | Start the backend against (a) an empty database, (b) a database created by the old `ddl-auto=update` builds (no Flyway history), (c) a database Hibernate already upgraded to the newest entities | ✅ (a) V1→V2→V3→V4 applied in order; (b) baselined at V1 (its existing data is kept) then V2→V3→V4 applied — including the venue/resource/comment tables and columns an older DB lacks; (c) baselined then V2/V3 run as harmless no-ops and V4 adds the `active` column; in every case Hibernate `validate` passes. Verified against a clone of the real dev database (rows and Presidents preserved) |
 | 26.4 | Email verification switch | Toggle `REQUIRE_EMAIL_VERIFICATION` | ✅ `false` (dev, compose) = no gate; `true` (prod default) = 1.33 behaviour |
 | 26.5 | Forwarded headers | Toggle `TRUST_FORWARDED_HEADERS` | ✅ `false` = rate limiting uses the socket IP (1.31); `true` = first `X-Forwarded-For` entry (only behind a proxy that overwrites it) |
 | 26.6 | Upgrading an existing database | Start this build against a database created by the previous version (`ddl-auto=update`) | ✅ App starts; existing clubs get membership fee 0, no certificate threshold (falls back to 3) and `archived=false`; events `cancelled=false`; users `emailNotificationsEnabled=true`. Existing presidents get their `president_club_id` marker the next time their membership row is written (the unique index protects hand-offs from then on) |
@@ -686,7 +686,7 @@ These checks are done on GitHub after the first push; see `docs/DEPLOYMENT.md` f
 |---|---|---|---|
 | 29.1 | Path isolation | Open a PR that changes only `frontend/…`; another that changes only `backend/…`; a third that only edits `README.md` | ✅ Frontend PR runs only **Frontend CI/CD**; backend PR runs only **Backend CI/CD**; the README-only PR runs neither |
 | 29.2 | Backend tests gate everything | Break a backend test on a PR branch | 🚫 **Test** fails; the image and deploy jobs never start; the PR is blocked once branch protection requires the check |
-| 29.3 | Real database in CI | Look at the backend Test job | ✅ A MySQL 8.4 service starts, Flyway applies V1–V3 from scratch, ~315 tests (unit + integration) run, a summary table appears on the run page and the surefire reports are downloadable |
+| 29.3 | Real database in CI | Look at the backend Test job | ✅ A MySQL 8.4 service starts, Flyway applies V1–V4 from scratch, ~315 tests (unit + integration) run, a summary table appears on the run page and the surefire reports are downloadable |
 | 29.4 | Frontend gates | Introduce a lint error, then a failing Vitest test, then a high-severity dependency | 🚫 Each fails the **Lint, test and build** job (audit fails on high or worse); `frontend-dist` is uploaded on success |
 | 29.5 | PR preview | Open a PR from a branch in this repo with the Vercel secrets set | ✅ A preview deployment is created and a single PR comment with the URL is created/updated on each push; forked PRs skip the preview without failing |
 | 29.6 | Unconfigured deploys skip visibly | Merge to `main` with the deploy secrets/variables absent | ✅ Tests and image build run; the deploy job shows a **warning annotation** ("Deployment skipped…") and does not fail; nothing is deployed |
@@ -706,10 +706,72 @@ These checks are done on GitHub after the first push; see `docs/DEPLOYMENT.md` f
 
 | # | Scenario | Steps | Expected |
 |---|---|---|---|
-| 30.1 | Upgrade the real dev database | Back it up (`mysqldump club_management > backup.sql`), start the new backend once | ✅ Flyway baselines at V1, applies V2 and V3 (a few seconds); the app starts; every user, club, event and membership is still there; existing Presidents are marked so the one-President constraint protects them; nothing asks you to change `.env` |
+| 30.1 | Upgrade the real dev database | Back it up (`mysqldump club_management > backup.sql`), start the new backend once | ✅ Flyway baselines at V1, applies V2, V3 and V4 (a few seconds); the app starts; every user, club, event and membership is still there; existing Presidents are marked so the one-President constraint protects them; nothing asks you to change `.env` |
 | 30.2 | Old data is usable | Log in with an existing account; open a club with an existing logo/banner/announcement; upload a new large logo | ✅ Existing content displays; new uploads of realistic size work (columns are now `longtext`); the club shows fee 0 and default certificate threshold |
 | 30.3 | Schema drift is caught | Manually `ALTER TABLE clubs DROP COLUMN archived` on a scratch DB and start | 🚫 Startup fails with a schema-validation error naming the column (instead of failing later on a user's request) |
 | 30.4 | Re-running is harmless | Start the backend repeatedly | ✅ Flyway reports "Schema is up to date. No migration necessary" |
+
+---
+
+## 31. Proposal Gap Closure: User Management, Reports, Participation History, Backups, Accessibility
+
+### User management (`/api/admin/users`, page `/admin/users`, Super Admin only)
+
+| # | Scenario | Steps | Expected |
+|---|---|---|---|
+| 31.1 | Entry points | `superadmin` → sidebar "Administration → Users" and Dashboard "Manage users & roles" | ✅ Both open `/admin/users`; the list shows every account with role badge, "Deactivated"/"You" tags, verified state and join date |
+| 31.2 | Access control | `alice`/`advisor` call `GET /api/admin/users` (and POST/PUT/activate/deactivate); anonymous call | 🚫 403 for every non-Super-Admin role, 401 anonymous; the page itself shows the 403 message rather than crashing |
+| 31.3 | Search, filter, paging | Type part of a name or email and Search; pick a role; with more than 20 users use Next/Previous | ✅ Results narrow (name or email, case-insensitive) and combine with the role filter; "Page x of y · N users" updates; searching returns to page 1 |
+| 31.4 | Create a user | New user → name, email, temporary password (8+), role Faculty Advisor → Create | ✅ 201; appears in the list; the new user can sign in immediately (email pre-verified) and has the chosen role; audit `CREATE_USER`. Omitting the role creates a Student |
+| 31.5 | Create validation | Duplicate email; email without `@`; password under 8 characters; blank name | 🚫 409 "already exists"; 400 "A valid email is required"; 400 "Password must be at least 8 characters"; 400 "Name is required"; the dialog stays open with the message in a toast |
+| 31.6 | Assign a role | Edit `carol` → role Faculty Advisor → Save | ✅ The server applies it on her very next request (no new token needed); after she reloads the page she sees Advisor tools in the sidebar; audit `UPDATE_USER` records `role STUDENT -> FACULTY_ADVISOR` |
+| 31.7 | Edit name/email | Change a user's email to one already in use / to a new one | 🚫 409 for a taken address; ✅ otherwise saved (lower-cased) and audited |
+| 31.8 | Cannot change or remove yourself | As `superadmin`: open Edit on your own row; try `PUT` with another role for your own id; try to deactivate yourself | ✅ Role selector is disabled and the Deactivate button is disabled; 🚫 API returns 400 "You cannot change your own role" / "You cannot deactivate your own account" |
+| 31.9 | Last Super Admin is protected | With a single active Super Admin, demote or deactivate them via the API (from another Super Admin session first, then reduce to one) | 🚫 400 "Cannot demote/deactivate the last active Super Admin"; with two active Super Admins one can be demoted |
+| 31.10 | Deactivate | Deactivate `carol` (confirm the prompt; cancelling does nothing) | ✅ She is marked Deactivated; her existing session's next request is rejected (401) and she cannot sign in ("This account has been deactivated…", only after entering the correct password); her memberships, RSVPs and history stay; audit `DEACTIVATE_USER` |
+| 31.11 | Reactivate | Reactivate `carol` | ✅ She can sign in again with her old password; audit `ACTIVATE_USER` |
+
+### Cancel membership confirmation (UC12)
+
+| # | Scenario | Steps | Expected |
+|---|---|---|---|
+| 31.12 | Confirm before leaving | `carol` on Tech Innovators → Leave club → Cancel in the browser prompt; then Leave club → OK | ✅ Cancel keeps the membership active and changes nothing; OK removes her from the active list (status `LEFT`) with a "You left the club" toast |
+
+### Reports and export (UC11 / UC13)
+
+| # | Scenario | Steps | Expected |
+|---|---|---|---|
+| 31.13 | Club CSV as an officer | `alice` → Tech Innovators → export CSV | ✅ Starts with the `Metric,Value` summary, then labelled sections: **Club information**, **Activities and participation** (event, date, status Upcoming/Held/Cancelled/…, going, attended, no-shows, average rating; no-shows/attended are blank for events not yet held) and **Members** (name, position, joined) |
+| 31.14 | Club CSV as a regular member | `carol` exports the same club | ✅ Summary, club information and activities are present; **no Members section**; financial figures are 0 as before |
+| 31.15 | Club PDF | Export PDF as `alice` for a club with many members/events | ✅ Same content as the CSV as readable table rows; long lists continue on extra pages; club names or member names with non-Latin characters show `?` instead of failing the export |
+| 31.16 | University report | `superadmin` / `advisor` → Analytics → CSV and PDF | ✅ Headline metrics plus a **Clubs** table (club, category, members, events) for approved, non-archived clubs; students get 403 |
+| 31.17 | Unknown club | `GET /api/analytics/clubs/{random-uuid}/csv` | 🚫 404 "Club not found" |
+| 31.18 | Formula safety | A member named `=HYPERLINK(...)` in the Members section, opened in a spreadsheet | ✅ The cell is prefixed with `'` and not evaluated |
+
+### Participation history
+
+| # | Scenario | Steps | Expected |
+|---|---|---|---|
+| 31.19 | My participation | Check `carol` in to two events in different clubs (QR and manual), then sidebar → "My participation" (`/participation`) | ✅ "2 events attended" plus a per-club count; each row shows the event (linked), club (linked), date and how she was checked in; newest event first |
+| 31.20 | Only my own | `GET /api/attendance/me` as `bob` | ✅ Contains only `bob`'s check-ins, never another user's; a user with none sees the "No participation yet" empty state |
+
+### Backups (NFR11)
+
+| # | Scenario | Steps | Expected |
+|---|---|---|---|
+| 31.21 | Scheduled backups | `docker compose up`; wait or set `BACKUP_INTERVAL_SECONDS=30`; look in `./backups/` | ✅ A `club_management-<UTC timestamp>.sql.gz` appears immediately and then every interval; only the newest `BACKUP_KEEP` files remain; `./backups/` is git-ignored |
+| 31.22 | On-demand backup | `docker compose exec backup sh /backup.sh` | ✅ One more dump is written; exit status 0 |
+| 31.23 | Failed backup is not kept | Stop the `mysql` container mid-run / give a wrong `MYSQL_PWD`, run the backup | 🚫 "mysqldump failed", non-zero exit, no partial `.part`/`.sql.gz` left behind; the loop retries at the next interval |
+| 31.24 | Restore | Add a club, take a backup, delete the club, then `scripts/restore.sh backups/<file>` (answer `yes`) | ✅ Backend stops, data is replaced, backend restarts; the club is back; answering anything but `yes` (or a missing/invalid file) restores nothing |
+
+### Accessibility (NFR10)
+
+| # | Scenario | Steps | Expected |
+|---|---|---|---|
+| 31.25 | Skip link | Load any signed-in page, press Tab once | ✅ A "Skip to main content" link appears; Enter moves focus to the page content, past the sidebar |
+| 31.26 | Dialog focus | Open any dialog (e.g. New user, Create club) with the keyboard | ✅ Focus moves into the dialog (first field); Tab/Shift+Tab cycle inside it and never reach the page behind; Esc closes it and focus returns to the button that opened it |
+| 31.27 | Announcements | Trigger an error (e.g. wrong password change) and a success (save profile) with a screen reader on | ✅ Errors are announced immediately (alert); successes politely (status) |
+| 31.28 | Form labels | Inspect the user-management search box, role filter, and dialogs | ✅ Every control has a visible or screen-reader label; the password field explains its rule; pagination is a labelled navigation region |
 
 ---
 

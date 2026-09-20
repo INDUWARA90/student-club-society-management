@@ -5,7 +5,6 @@ import api from '../../api/axios'
 import { useToast } from '../../components/ToastProvider'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
-import EmptyState from '../../components/ui/EmptyState'
 import { fileToDataUrl } from '../../utils/fileToDataUrl'
 
 function formatDate(iso) {
@@ -72,22 +71,22 @@ function ClubResources({ clubId, isOfficer, isPresident }) {
   }
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">Resources</h2>
+    <Card interactive={false}>
+      <h2 className="text-sm font-semibold text-ink dark:text-ink-dark">Resources</h2>
 
       {isOfficer && (
-        <form onSubmit={handleUpload} className="mt-3 flex flex-wrap items-end gap-2">
+        <form onSubmit={handleUpload} className="mt-3 flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (e.g. Club Constitution)"
-            className="min-w-[200px] flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
+            className="min-w-50 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
           />
           <input
             type="file"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="text-sm text-ink dark:text-ink-dark"
+            className="text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-600 dark:text-ink-dark dark:file:bg-brand-500/15 dark:file:text-brand-300"
           />
           <Button type="submit" size="sm" loading={uploading} disabled={!title.trim() || !file}>
             <Plus className="h-3.5 w-3.5" />
@@ -97,13 +96,19 @@ function ClubResources({ clubId, isOfficer, isPresident }) {
       )}
 
       {resources?.length === 0 && (
-        <EmptyState icon={FileText} description="No resources yet." />
+        <p className="mt-3 flex items-center gap-2 text-sm text-ink-muted dark:text-ink-dark-muted">
+          <FileText className="h-4 w-4" />
+          No resources yet.
+        </p>
       )}
 
       {resources && resources.length > 0 && (
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {resources.map((r) => (
-            <Card key={r.id} interactive={false} className="flex items-center justify-between">
+            <div
+              key={r.id}
+              className="flex items-center justify-between rounded-lg bg-surface-muted p-3 dark:bg-surface-dark"
+            >
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 shrink-0 text-brand-500" />
                 <div>
@@ -123,11 +128,11 @@ function ClubResources({ clubId, isOfficer, isPresident }) {
                   </Button>
                 )}
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
-    </section>
+    </Card>
   )
 }
 

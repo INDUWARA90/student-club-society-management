@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.club.backend.config.ApiException;
 import com.club.backend.dto.AttendanceResponse;
+import com.club.backend.dto.MyAttendanceResponse;
 import com.club.backend.entity.Attendance;
 import com.club.backend.entity.AttendanceMethod;
 import com.club.backend.entity.Event;
@@ -113,6 +114,15 @@ public class AttendanceService {
         certificateService.checkAndIssueCertificate(user, event.getClub());
 
         return AttendanceResponse.from(attendance);
+    }
+
+    /** The caller's own participation history across all clubs, most recent event first. */
+    public List<MyAttendanceResponse> listMine(UserPrincipal principal) {
+        return attendanceRepository.findByUserId(principal.getId()).stream()
+                .map(MyAttendanceResponse::from)
+                .sorted(java.util.Comparator.comparing(MyAttendanceResponse::eventDate,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .toList();
     }
 
     /** Officers and university staff see everyone; anyone else only sees their own check-in. */

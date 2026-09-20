@@ -10,6 +10,15 @@ import Skeleton from '../../components/ui/Skeleton'
 import CreateClubModal from './CreateClubModal'
 import { fetchClubs } from './clubsSlice'
 
+const chip = (active) =>
+  `rounded-full px-3.5 py-1.5 text-sm font-medium transition-fast ${
+    active
+      ? 'bg-brand-500 text-white shadow-card'
+      : 'border border-border bg-surface text-ink-muted hover:border-brand-300 hover:text-ink dark:border-border-dark dark:bg-surface-dark-muted dark:text-ink-dark-muted dark:hover:text-ink-dark'
+  }`
+
+const CATEGORIES = ['Sports', 'Academic', 'Cultural', 'Tech']
+
 function ClubsPage() {
   const dispatch = useDispatch()
   const { items, status } = useSelector((state) => state.clubs)
@@ -46,17 +55,14 @@ function ClubsPage() {
             className="w-full rounded-md border border-border bg-surface py-2 pl-9 pr-3 text-sm text-ink outline-none transition-fast focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
           />
         </div>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink outline-none dark:border-border-dark dark:bg-surface-dark dark:text-ink-dark"
-        >
-          <option value="">All categories</option>
-          <option value="Sports">Sports</option>
-          <option value="Academic">Academic</option>
-          <option value="Cultural">Cultural</option>
-          <option value="Tech">Tech</option>
-        </select>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+        {['', ...CATEGORIES].map((c) => (
+          <button key={c || 'all'} type="button" aria-pressed={category === c} onClick={() => setCategory(c)} className={chip(category === c)}>
+            {c || 'All'}
+          </button>
+        ))}
       </div>
 
       {status === 'loading' && (
@@ -77,21 +83,23 @@ function ClubsPage() {
       {status !== 'loading' && visibleClubs.length > 0 && (
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visibleClubs.map((club) => (
-            <Card key={club.id} to={`/clubs/${club.id}`}>
-              <div className="flex aspect-video items-center justify-center rounded-lg bg-brand-gradient-soft text-brand-400 dark:text-brand-300">
+            <Card key={club.id} to={`/clubs/${club.id}`} className="overflow-hidden p-0">
+              <div className="flex aspect-video items-center justify-center bg-brand-gradient-soft text-brand-400 dark:text-brand-300">
                 {club.logoB64 ? (
-                  <img src={club.logoB64} alt={club.name} className="h-full w-full rounded-lg object-cover" />
+                  <img src={club.logoB64} alt={club.name} className="h-full w-full object-cover" />
                 ) : (
                   <Flag className="h-7 w-7" strokeWidth={1.5} />
                 )}
               </div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <h2 className="font-semibold text-ink dark:text-ink-dark">{club.name}</h2>
-                <Badge tone="brand">{club.category}</Badge>
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="font-semibold text-ink dark:text-ink-dark">{club.name}</h2>
+                  <Badge tone="brand">{club.category}</Badge>
+                </div>
+                <p className="mt-1.5 line-clamp-2 text-sm text-ink-muted dark:text-ink-dark-muted">
+                  {club.description || 'No description yet.'}
+                </p>
               </div>
-              <p className="mt-1 line-clamp-2 text-sm text-ink-muted dark:text-ink-dark-muted">
-                {club.description || 'No description yet.'}
-              </p>
             </Card>
           ))}
         </div>

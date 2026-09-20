@@ -3,3 +3,6 @@ target/
 *.iml
 .idea/
 Seed.sql
+.env
+.env.*
+!.env.example

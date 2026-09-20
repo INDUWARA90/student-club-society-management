@@ -51,6 +51,12 @@ public class User {
     @Column(name = "profile_image_b64", length = Length.LONG32)
     private String profileImageB64;
 
+    /** A deactivated account keeps its data but can no longer sign in or use existing tokens. */
+    @Column(nullable = false)
+    @ColumnDefault("true")
+    @Builder.Default
+    private boolean active = true;
+
     @Column(name = "email_verified", nullable = false)
     @Builder.Default
     private boolean emailVerified = false;

@@ -9,6 +9,7 @@ body {
   @apply font-sans bg-surface text-ink dark:bg-surface-dark dark:text-ink-dark;
   margin: 0;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
@@ -21,10 +22,46 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #E5E5E8 transparent;
+  scrollbar-color: #DCDCE6 transparent;
 }
 .dark * {
-  scrollbar-color: #2A2A2E transparent;
+  scrollbar-color: #34343E transparent;
+}
+
+/* Chart tokens. Series colours were run through the dataviz validator against the card surface
+   in each mode (light: #FFFFFF, dark: #17171C); dark steps are their own selection, not a flip. */
+:root {
+  --chart-surface: #ffffff;
+  --chart-series-1: #7c5cfc;
+  --chart-series-2: #eb6834;
+  --chart-track: #e9e3ff;
+  --chart-grid: #ececf3;
+  --chart-axis: #c9c9d6;
+  --chart-muted: #85859a;
+}
+.dark {
+  --chart-surface: #17171c;
+  --chart-series-1: #9078fa;
+  --chart-series-2: #d95926;
+  --chart-track: #2b2547;
+  --chart-grid: #26262e;
+  --chart-axis: #3a3a45;
+  --chart-muted: #8f8fa3;
+}
+
+/* Soft brand glows behind the app content give the flat surface some depth. */
+.app-backdrop {
+  background-color: #F5F5FA;
+  background-image:
+    radial-gradient(60rem 28rem at 85% -8rem, rgba(124, 92, 252, 0.10), transparent 70%),
+    radial-gradient(40rem 24rem at -5% 30%, rgba(217, 70, 239, 0.05), transparent 70%);
+  background-attachment: fixed;
+}
+.dark .app-backdrop {
+  background-color: #0E0E12;
+  background-image:
+    radial-gradient(60rem 28rem at 85% -8rem, rgba(124, 92, 252, 0.16), transparent 70%),
+    radial-gradient(40rem 24rem at -5% 30%, rgba(217, 70, 239, 0.07), transparent 70%);
 }
 
 @keyframes toast-enter-kf {
@@ -39,4 +76,45 @@ body {
 }
 .toast-enter {
   animation: toast-enter-kf 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes page-enter-kf {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter-kf 320ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes shimmer-kf {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(124, 92, 252, 0.10) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-kf 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .toast-enter,
+  .skeleton-shimmer {
+    animation: none;
+  }
 }

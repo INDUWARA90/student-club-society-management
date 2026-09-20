@@ -7,6 +7,10 @@ spring:
     name: backend
   profiles:
     active: dev
+  config:
+    # Local convenience: load backend/.env (KEY=value lines) when it exists. Real environment variables still win,
+    # and on Render/Docker there is no file, so nothing changes there.
+    import: optional:file:.env[.properties]
   # Schema is owned by Flyway (src/main/resources/db/migration); Hibernate only validates it.
   # Databases created before Flyway (by ddl-auto=update) are baselined at V1 and receive V2 onwards.
   flyway:

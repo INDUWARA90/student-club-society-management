@@ -253,4 +253,22 @@ class AttendanceServiceTest {
 
         assertThat(attendanceService.listAttendance(event.getId(), new UserPrincipal(advisor))).hasSize(1);
     }
+
+    @Test
+    void listMine_returnsTheCallersAttendanceAcrossClubsNewestEventFirst() {
+        Event older = Event.builder().id(UUID.randomUUID()).club(club).title("Old Meetup")
+                .eventDate(Instant.now().minusSeconds(86400 * 10)).build();
+        Club otherClub = Club.builder().id(UUID.randomUUID()).name("Drama Club").status(ClubStatus.APPROVED).build();
+        Event newer = Event.builder().id(UUID.randomUUID()).club(otherClub).title("Play Night")
+                .eventDate(Instant.now().minusSeconds(3600)).build();
+        when(attendanceRepository.findByUserId(target.getId())).thenReturn(List.of(
+                Attendance.builder().event(older).user(target).method(AttendanceMethod.MANUAL).build(),
+                Attendance.builder().event(newer).user(target).method(AttendanceMethod.QR).build()));
+
+        var mine = attendanceService.listMine(targetPrincipal);
+
+        assertThat(mine).extracting(m -> m.eventTitle()).containsExactly("Play Night", "Old Meetup");
+        assertThat(mine.get(0).clubName()).isEqualTo("Drama Club");
+        assertThat(mine.get(0).method()).isEqualTo(AttendanceMethod.QR);
+    }
 }

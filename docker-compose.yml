@@ -15,6 +15,24 @@ services:
       timeout: 5s
       retries: 10
 
+  # Regular database backups (NFR11): a gzipped dump every BACKUP_INTERVAL_SECONDS into ./backups, newest
+  # BACKUP_KEEP kept. See docs/DEPLOYMENT.md ("Backups") for restoring.
+  backup:
+    image: mysql:8.4
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/backup.sh", "--loop"]
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ./scripts/backup.sh:/backup.sh:ro
+      - ./backups:/backups
+
   backend:
     build: ./backend
     restart: unless-stopped

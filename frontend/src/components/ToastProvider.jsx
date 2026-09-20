@@ -45,7 +45,7 @@ function ToastProvider({ children }) {
           return (
             <div
               key={t.id}
-              role="status"
+              role={t.variant === 'error' ? 'alert' : 'status'}
               className={`toast-enter pointer-events-auto flex items-start gap-2 rounded-xl border px-4 py-3 text-sm shadow-card-hover backdrop-blur-sm ${VARIANT_CLASS[t.variant] || VARIANT_CLASS.success}`}
             >
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${VARIANT_ICON_CLASS[t.variant] || VARIANT_ICON_CLASS.success}`} />

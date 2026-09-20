@@ -48,7 +48,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String email = jwtService.extractEmail(token);
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 userRepository.findByEmail(email).ifPresent(user -> {
-                    if (jwtService.isTokenValid(token, email) && !issuedBeforePasswordChange(token, user)) {
+                    if (user.isActive() && jwtService.isTokenValid(token, email)
+                            && !issuedBeforePasswordChange(token, user)) {
                         UserDetails principal = new UserPrincipal(user);
                         var authToken = new UsernamePasswordAuthenticationToken(
                                 principal, null, principal.getAuthorities());

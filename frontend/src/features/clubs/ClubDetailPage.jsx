@@ -195,6 +195,7 @@ function ClubDetailPage() {
   }
 
   async function handleLeave() {
+    if (!window.confirm(`Leave ${club?.name || 'this club'}? You will be removed from the active member list.`)) return
     try {
       await api.delete(`/clubs/${clubId}/join`)
       setJoinStatus('LEFT')

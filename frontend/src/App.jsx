@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/AppLayout'
 import AuditLogPage from './features/admin/AuditLogPage'
+import UserManagementPage from './features/admin/UserManagementPage'
 import AlumniDirectoryPage from './features/alumni/AlumniDirectoryPage'
 import UniversityStatsPage from './features/analytics/UniversityStatsPage'
 import ForgotPasswordPage from './features/auth/ForgotPasswordPage'
@@ -21,6 +22,7 @@ import CertificatesPage from './features/certificates/CertificatesPage'
 import EventCheckInPage from './features/events/EventCheckInPage'
 import EventDetailPage from './features/events/EventDetailPage'
 import EventsPage from './features/events/EventsPage'
+import MyParticipationPage from './features/events/MyParticipationPage'
 import PendingEventsPage from './features/events/PendingEventsPage'
 import NotificationsPage from './features/notifications/NotificationsPage'
 import ManageVenuesPage from './features/venues/ManageVenuesPage'
@@ -63,6 +65,8 @@ function App() {
           <Route path="/advisor/clubs" element={<AllClubsOverviewPage />} />
           <Route path="/analytics" element={<UniversityStatsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/participation" element={<MyParticipationPage />} />
+          <Route path="/admin/users" element={<UserManagementPage />} />
           <Route path="/admin/audit-log" element={<AuditLogPage />} />
           <Route path="/admin/venues" element={<ManageVenuesPage />} />
           <Route path="/alumni" element={<AlumniDirectoryPage />} />

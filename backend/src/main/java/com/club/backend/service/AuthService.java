@@ -155,6 +155,11 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> ApiException.badRequest("Invalid email or password"));
 
+        // Checked only after the password matched, so a deactivated account isn't revealed to someone guessing.
+        if (!user.isActive()) {
+            throw ApiException.forbidden("This account has been deactivated. Contact a system administrator.");
+        }
+
         String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
         return new AuthResponse(token, UserResponse.from(user));
     }

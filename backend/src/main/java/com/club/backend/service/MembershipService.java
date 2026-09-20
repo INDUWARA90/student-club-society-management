@@ -243,17 +243,8 @@ public class MembershipService {
         return csv.toString();
     }
 
-    /** Quotes values containing separators and neutralises spreadsheet formulas (=, +, -, @) in user-supplied text. */
     private String escapeCsv(String value) {
-        if (value == null) {
-            return "";
-        }
-        String safe = value;
-        if (!safe.isEmpty() && "=+-@\t\r".indexOf(safe.charAt(0)) >= 0) {
-            safe = "'" + safe;
-        }
-        return safe.contains(",") || safe.contains("\"") || safe.contains("\n")
-                ? "\"" + safe.replace("\"", "\"\"") + "\"" : safe;
+        return CsvSupport.escape(value);
     }
 
     public List<MembershipResponse> listPendingRequests(UUID clubId, UserPrincipal principal) {

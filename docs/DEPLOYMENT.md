@@ -114,8 +114,9 @@ Migrations live in `backend/src/main/resources/db/migration` and run automatical
 | `V1__baseline_schema.sql` | the original schema |
 | `V2__venues_resources_event_comments_alumni.sql` | venues, resource library, event discussion, alumni (idempotent) |
 | `V3__workflow_and_logic_hardening.sql` | fees/archive/cancel/refunds/verification codes/…, real-size text columns (idempotent) |
+| `V4__user_active_flag.sql` | `users.active`, so an admin can deactivate an account without deleting it |
 
-Rules: add `V4__short_description.sql`, `V5__…` — **never edit a migration that has run anywhere** (Flyway rejects a
+Rules: add `V5__short_description.sql`, `V6__…` — **never edit a migration that has run anywhere** (Flyway rejects a
 changed checksum); Hibernate only *validates* (`ddl-auto: validate`), so an entity change without a matching migration
 fails the tests and the startup loudly instead of silently altering production. Existing databases created before Flyway
 are baselined at V1 automatically. Integration tests apply the same migrations to an empty database on every run.
@@ -126,6 +127,27 @@ are baselined at V1 automatically. Integration tests apply the same migrations t
   (instant), or revert the merge on `main` and let the pipeline redeploy.
 * **Database**: migrations are forward-only. Ship a corrective `V<n+1>` migration; take a provider snapshot before a risky one.
 * **Frontend**: Vercel → Deployments → the previous deployment → **Promote to Production**.
+
+## Backups
+Data loss protection has two layers; use the one that matches how you host the database.
+
+**Docker Compose stack (local / VPS).** The `backup` service in `docker-compose.yml` runs `scripts/backup.sh --loop`: it
+writes a gzipped `mysqldump` of `club_management` to `./backups/` every `BACKUP_INTERVAL_SECONDS` (default daily) and
+keeps the newest `BACKUP_KEEP` (default 14). Each dump is checked to be complete before it is kept; a failed or
+truncated dump is discarded and retried at the next interval. Take one on demand with
+`docker compose exec backup sh /backup.sh`. Copy `./backups/` off the machine (another disk, cloud storage) — a backup
+on the same disk as the database does not survive losing that disk.
+
+**Managed MySQL (Aiven, RDS, Railway, …).** Turn on the provider's automated backups / point-in-time recovery and note
+the retention period. This is the layer that protects the Render deployment above, since the compose `backup` service
+isn't part of it.
+
+**Restore** (compose stack), from the repository root:
+```bash
+scripts/restore.sh backups/club_management-<timestamp>.sql.gz
+```
+It asks for confirmation, stops the backend, replaces the database contents with the dump, and starts the backend
+again. Test a restore into a scratch stack before you rely on it.
 
 ## Running the same things locally
 ```bash

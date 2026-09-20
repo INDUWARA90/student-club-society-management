@@ -253,6 +253,7 @@ function DashboardPage() {
               icon={ShieldCheck}
               accent="text-role-super"
               links={[
+                { to: '/admin/users', label: 'Manage users & roles' },
                 { to: '/admin/pending-clubs', label: 'Review pending clubs' },
                 { to: '/analytics', label: 'University-wide analytics' },
                 { to: '/admin/audit-log', label: 'Audit log' },

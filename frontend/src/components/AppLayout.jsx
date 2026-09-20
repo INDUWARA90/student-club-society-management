@@ -3,6 +3,7 @@ import {
   CalendarDays,
   CalendarRange,
   ClipboardCheck,
+  ClipboardList,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -15,13 +16,14 @@ import {
   TrendingUp,
   TriangleAlert,
   User,
+  UserCog,
   Users,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Outlet, Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { logout, resendVerification } from '../features/auth/authSlice'
+import { logout, refreshCurrentUser, resendVerification } from '../features/auth/authSlice'
 import { toggleTheme } from '../features/theme/themeSlice'
 import { useToast } from './ToastProvider'
 import NotificationBell from './NotificationBell'
@@ -32,10 +34,12 @@ const NAV_LINKS = [
   { to: '/calendar', label: 'Calendar', icon: CalendarRange },
   { to: '/clubs', label: 'Clubs', icon: Users },
   { to: '/alumni', label: 'Alumni', icon: GraduationCap },
+  { to: '/participation', label: 'My participation', icon: ClipboardList },
   { to: '/certificates', label: 'Certificates', icon: Award },
 ]
 
 const ADMIN_LINKS = [
+  { to: '/admin/users', label: 'Users', icon: UserCog },
   { to: '/admin/pending-clubs', label: 'Pending clubs', icon: ClipboardCheck },
   { to: '/analytics', label: 'Analytics', icon: TrendingUp },
   { to: '/admin/audit-log', label: 'Audit log', icon: ScrollText },
@@ -122,6 +126,11 @@ function AppLayout() {
   const [resending, setResending] = useState(false)
   const [dismissedBanner, setDismissedBanner] = useState(false)
 
+  // Pick up role/verification changes made since the last sign-in (e.g. an admin changing this user's role).
+  useEffect(() => {
+    dispatch(refreshCurrentUser())
+  }, [dispatch])
+
   async function handleResendVerification() {
     setResending(true)
     const result = await dispatch(resendVerification())
@@ -145,6 +154,12 @@ function AppLayout() {
 
   return (
     <div className="app-backdrop min-h-svh">
+      <a
+        href="#main-content"
+        className="sr-only z-[60] rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to main content
+      </a>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-surface px-4 py-5 dark:border-border-dark dark:bg-surface-dark-muted lg:flex">
         <Link to="/" className="flex items-center gap-2.5 px-2 text-ink dark:text-ink-dark">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-gradient text-white shadow-card">
@@ -257,7 +272,7 @@ function AppLayout() {
           </div>
         )}
 
-        <main key={location.pathname} className="page-enter pb-20 lg:pb-0">
+        <main id="main-content" tabIndex={-1} key={location.pathname} className="page-enter pb-20 outline-none lg:pb-0">
           <Outlet />
         </main>
       </div>

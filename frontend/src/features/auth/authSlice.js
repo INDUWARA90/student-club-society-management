@@ -105,6 +105,20 @@ export const updateProfileImage = createAsyncThunk(
   },
 )
 
+/**
+ * Re-reads the signed-in user from the server, so a role change or a verified email made elsewhere (for example by a
+ * Super Admin) shows up without signing in again. Failures are ignored: an expired or revoked token is already
+ * handled by the axios 401 interceptor, and a network blip shouldn't sign anyone out.
+ */
+export const refreshCurrentUser = createAsyncThunk('auth/refreshCurrentUser', async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get('/auth/me')
+    return data
+  } catch (error) {
+    return rejectWithValue(extractErrorMessage(error))
+  }
+})
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -182,6 +196,12 @@ const authSlice = createSlice({
         localStorage.setItem('user', JSON.stringify(action.payload))
       })
       .addCase(updateProfileImage.fulfilled, (state, action) => {
+        state.user = action.payload
+        localStorage.setItem('user', JSON.stringify(action.payload))
+      })
+      .addCase(refreshCurrentUser.fulfilled, (state, action) => {
+        // Ignore a response that arrives after signing out (or for a different account).
+        if (!state.user || state.user.id !== action.payload.id) return
         state.user = action.payload
         localStorage.setItem('user', JSON.stringify(action.payload))
       })

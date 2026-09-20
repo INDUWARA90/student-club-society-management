@@ -4,9 +4,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,8 +22,10 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.stereotype.Service;
 
+import com.club.backend.config.ApiException;
 import com.club.backend.dto.ClubStatsResponse;
 import com.club.backend.dto.UniversityStatsResponse;
+import com.club.backend.entity.Club;
 import com.club.backend.entity.ClubStatus;
 import com.club.backend.entity.Event;
 import com.club.backend.entity.EventApprovalStatus;
@@ -140,89 +146,265 @@ public class AnalyticsService {
                 pendingClubProposals, pendingEventApprovals);
     }
 
+    // ---------------------------------------------------------------------------------------------------------
+    // Exportable reports (CSV / PDF). Both formats render the same Report, so they always agree with each other.
+    // ---------------------------------------------------------------------------------------------------------
+
+    /** A titled table inside a report. */
+    private record ReportSection(String title, List<String> header, List<List<String>> rows) {
+    }
+
+    /** Headline metrics followed by detail tables (club information, activities, members, per-club rows...). */
+    private record Report(String title, Map<String, String> summary, List<ReportSection> sections) {
+    }
+
     public String getUniversityStatsCsv() {
-        UniversityStatsResponse stats = getUniversityStats();
-        return "Metric,Value\n"
-                + "Approved Clubs," + stats.totalClubs() + "\n"
-                + "Students," + stats.totalStudents() + "\n"
-                + "Published Events," + stats.totalEvents() + "\n"
-                + "Payments Collected," + stats.totalPaymentsCollected() + "\n"
-                + "Pending Club Proposals," + stats.pendingClubProposals() + "\n"
-                + "Pending Event Approvals," + stats.pendingEventApprovals() + "\n";
+        return toCsv(buildUniversityReport());
     }
 
     public String getClubStatsCsv(UUID clubId, UserPrincipal principal) {
-        ClubStatsResponse stats = getClubStats(clubId, principal);
-        return "Metric,Value\n"
-                + "Members," + stats.memberCount() + "\n"
-                + "Events," + stats.eventCount() + "\n"
-                + "RSVPs," + stats.totalRsvps() + "\n"
-                + "Attendance," + stats.totalAttendance() + "\n"
-                + "Attendance Rate (%)," + String.format(java.util.Locale.ROOT, "%.1f", stats.attendanceRatePercent()) + "\n"
-                + "Average Event Rating," + String.format(java.util.Locale.ROOT, "%.2f", stats.averageEventRating()) + "\n"
-                + "Total Income," + stats.totalIncome() + "\n"
-                + "Total Expenses," + stats.totalExpenses() + "\n"
-                + "Balance," + stats.balance() + "\n";
+        return toCsv(buildClubReport(clubId, principal));
     }
 
     public byte[] getUniversityStatsPdf() {
-        UniversityStatsResponse stats = getUniversityStats();
-        Map<String, String> rows = new LinkedHashMap<>();
-        rows.put("Approved Clubs", String.valueOf(stats.totalClubs()));
-        rows.put("Students", String.valueOf(stats.totalStudents()));
-        rows.put("Published Events", String.valueOf(stats.totalEvents()));
-        rows.put("Payments Collected", String.valueOf(stats.totalPaymentsCollected()));
-        rows.put("Pending Club Proposals", String.valueOf(stats.pendingClubProposals()));
-        rows.put("Pending Event Approvals", String.valueOf(stats.pendingEventApprovals()));
-        return renderReportPdf("University-Wide Report", rows);
+        return toPdf(buildUniversityReport());
     }
 
     public byte[] getClubStatsPdf(UUID clubId, UserPrincipal principal) {
-        ClubStatsResponse stats = getClubStats(clubId, principal);
-        Map<String, String> rows = new LinkedHashMap<>();
-        rows.put("Members", String.valueOf(stats.memberCount()));
-        rows.put("Events", String.valueOf(stats.eventCount()));
-        rows.put("RSVPs", String.valueOf(stats.totalRsvps()));
-        rows.put("Attendance", String.valueOf(stats.totalAttendance()));
-        rows.put("Attendance Rate (%)", String.format(java.util.Locale.ROOT, "%.1f", stats.attendanceRatePercent()));
-        rows.put("Average Event Rating", String.format(java.util.Locale.ROOT, "%.2f", stats.averageEventRating()));
-        rows.put("Total Income", String.valueOf(stats.totalIncome()));
-        rows.put("Total Expenses", String.valueOf(stats.totalExpenses()));
-        rows.put("Balance", String.valueOf(stats.balance()));
-        return renderReportPdf("Club Report", rows);
+        return toPdf(buildClubReport(clubId, principal));
     }
 
-    private byte[] renderReportPdf(String title, Map<String, String> rows) {
+    private Report buildUniversityReport() {
+        UniversityStatsResponse stats = getUniversityStats();
+        Map<String, String> summary = new LinkedHashMap<>();
+        summary.put("Approved Clubs", String.valueOf(stats.totalClubs()));
+        summary.put("Students", String.valueOf(stats.totalStudents()));
+        summary.put("Published Events", String.valueOf(stats.totalEvents()));
+        summary.put("Payments Collected", String.valueOf(stats.totalPaymentsCollected()));
+        summary.put("Pending Club Proposals", String.valueOf(stats.pendingClubProposals()));
+        summary.put("Pending Event Approvals", String.valueOf(stats.pendingEventApprovals()));
+
+        List<List<String>> clubRows = new ArrayList<>();
+        clubRepository.findByStatus(ClubStatus.APPROVED).stream()
+                .filter(club -> !club.isArchived())
+                .sorted(Comparator.comparing(club -> club.getName().toLowerCase()))
+                .forEach(club -> clubRows.add(List.of(
+                        club.getName(),
+                        nullToEmpty(club.getCategory()),
+                        String.valueOf(membershipRepository.findByClubIdAndStatus(club.getId(), MembershipStatus.APPROVED).size()),
+                        String.valueOf(eventRepository.findByClubId(club.getId()).size()))));
+
+        List<ReportSection> sections = new ArrayList<>();
+        sections.add(new ReportSection("Clubs", List.of("Club", "Category", "Members", "Events"), clubRows));
+        return new Report("University-Wide Report", summary, sections);
+    }
+
+    private Report buildClubReport(UUID clubId, UserPrincipal principal) {
+        Club club = clubRepository.findById(clubId).orElseThrow(() -> ApiException.notFound("Club not found"));
+        ClubStatsResponse stats = getClubStats(clubId, principal);
+
+        Map<String, String> summary = new LinkedHashMap<>();
+        summary.put("Members", String.valueOf(stats.memberCount()));
+        summary.put("Events", String.valueOf(stats.eventCount()));
+        summary.put("RSVPs", String.valueOf(stats.totalRsvps()));
+        summary.put("Attendance", String.valueOf(stats.totalAttendance()));
+        summary.put("Attendance Rate (%)", String.format(Locale.ROOT, "%.1f", stats.attendanceRatePercent()));
+        summary.put("Average Event Rating", String.format(Locale.ROOT, "%.2f", stats.averageEventRating()));
+        summary.put("Total Income", String.valueOf(stats.totalIncome()));
+        summary.put("Total Expenses", String.valueOf(stats.totalExpenses()));
+        summary.put("Balance", String.valueOf(stats.balance()));
+
+        List<ReportSection> sections = new ArrayList<>();
+
+        // Club information report
+        List<List<String>> info = new ArrayList<>();
+        info.add(List.of("Name", club.getName()));
+        info.add(List.of("Category", nullToEmpty(club.getCategory())));
+        info.add(List.of("Status", club.isArchived() ? "ARCHIVED" : String.valueOf(club.getStatus())));
+        info.add(List.of("Join policy", String.valueOf(club.getJoinPolicy())));
+        info.add(List.of("Membership fee", String.valueOf(club.getMembershipFee())));
+        info.add(List.of("Created", String.valueOf(club.getCreatedAt())));
+        sections.add(new ReportSection("Club information", List.of("Field", "Value"), info));
+
+        // Activity + participation report: one row per event
+        Map<UUID, ClubStatsResponse.EventEngagement> engagement = new HashMap<>();
+        stats.events().forEach(e -> engagement.put(e.eventId(), e));
+        Instant now = Instant.now();
+        List<List<String>> activities = new ArrayList<>();
+        eventRepository.findByClubId(clubId).stream()
+                .sorted(Comparator.comparing(Event::getEventDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .forEach(event -> {
+                    ClubStatsResponse.EventEngagement e = engagement.get(event.getId());
+                    long going = e != null ? e.going()
+                            : rsvpRepository.countByEventIdAndStatus(event.getId(), RsvpStatus.GOING);
+                    activities.add(List.of(
+                            event.getTitle(),
+                            event.getEventDate() == null ? "" : String.valueOf(event.getEventDate()),
+                            eventStatus(event, now),
+                            String.valueOf(going),
+                            e != null ? String.valueOf(e.attended()) : "",
+                            e != null ? String.valueOf(e.noShows()) : "",
+                            e != null && e.averageRating() > 0
+                                    ? String.format(Locale.ROOT, "%.2f", e.averageRating()) : ""));
+                });
+        sections.add(new ReportSection("Activities and participation",
+                List.of("Event", "Date", "Status", "Going", "Attended", "No-shows", "Avg rating"), activities));
+
+        // Membership report: officers and university staff only (the summary above is visible to everyone)
+        if (isOfficerOrStaff(clubId, principal)) {
+            List<List<String>> members = new ArrayList<>();
+            membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.APPROVED).stream()
+                    .sorted(Comparator.comparing(m -> m.getUser().getName().toLowerCase()))
+                    .forEach(m -> members.add(List.of(
+                            m.getUser().getName(), String.valueOf(m.getPosition()), String.valueOf(m.getJoinedAt()))));
+            sections.add(new ReportSection("Members", List.of("Name", "Position", "Joined"), members));
+        }
+        return new Report("Club Report - " + club.getName(), summary, sections);
+    }
+
+    private String eventStatus(Event event, Instant now) {
+        if (event.isCancelled()) {
+            return "Cancelled";
+        }
+        if (event.getApprovalStatus() == EventApprovalStatus.PENDING) {
+            return "Pending approval";
+        }
+        if (event.getApprovalStatus() == EventApprovalStatus.REJECTED) {
+            return "Rejected";
+        }
+        return event.getEventDate() != null && event.getEventDate().isAfter(now) ? "Upcoming" : "Held";
+    }
+
+    private boolean isOfficerOrStaff(UUID clubId, UserPrincipal principal) {
+        return canViewFinances(clubId, principal);
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String toCsv(Report report) {
+        StringBuilder csv = new StringBuilder("Metric,Value\n");
+        report.summary().forEach((key, value) -> csv.append(CsvSupport.escape(key)).append(',')
+                .append(CsvSupport.escape(value)).append('\n'));
+        for (ReportSection section : report.sections()) {
+            csv.append('\n').append(CsvSupport.escape(section.title())).append('\n');
+            csv.append(String.join(",", section.header().stream().map(CsvSupport::escape).toList())).append('\n');
+            for (List<String> row : section.rows()) {
+                csv.append(String.join(",", row.stream().map(CsvSupport::escape).toList())).append('\n');
+            }
+        }
+        return csv.toString();
+    }
+
+    private byte[] toPdf(Report report) {
         try (PDDocument document = new PDDocument()) {
-            PDPage page = new PDPage(PDRectangle.A4);
-            document.addPage(page);
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PdfCursor pdf = new PdfCursor(document);
 
-            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                PDType1Font titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-                PDType1Font bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-
-                content.beginText();
-                content.setFont(titleFont, 20);
-                content.newLineAtOffset(60, 760);
-                content.showText(title);
-                content.endText();
-
-                float y = 710;
-                for (Map.Entry<String, String> row : rows.entrySet()) {
-                    content.beginText();
-                    content.setFont(bodyFont, 12);
-                    content.newLineAtOffset(60, y);
-                    content.showText(row.getKey() + ": " + row.getValue());
-                    content.endText();
-                    y -= 24;
+            pdf.line(report.title(), bold, 18, 26);
+            pdf.line("Generated " + Instant.now().truncatedTo(ChronoUnit.SECONDS), regular, 9, 24);
+            for (Map.Entry<String, String> metric : report.summary().entrySet()) {
+                pdf.line(metric.getKey() + ": " + metric.getValue(), regular, 12, 20);
+            }
+            for (ReportSection section : report.sections()) {
+                pdf.skip(12);
+                pdf.line(section.title(), bold, 13, 20);
+                pdf.row(section.header(), bold);
+                if (section.rows().isEmpty()) {
+                    pdf.line("(none)", regular, 10, 16);
+                }
+                for (List<String> row : section.rows()) {
+                    pdf.row(row, regular);
                 }
             }
+            pdf.close();
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             document.save(out);
             return out.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException("Failed to generate report PDF", e);
+        }
+    }
+
+    /** Streams text top-down over as many A4 pages as needed; tables are simple equal-width columns. */
+    private static final class PdfCursor {
+        private static final float MARGIN = 50;
+        private static final float ROW_HEIGHT = 16;
+        private static final float TOP = PDRectangle.A4.getHeight() - MARGIN;
+        private static final float TEXT_WIDTH = PDRectangle.A4.getWidth() - 2 * MARGIN;
+
+        private final PDDocument document;
+        private PDPageContentStream stream;
+        private float y;
+
+        PdfCursor(PDDocument document) throws IOException {
+            this.document = document;
+            newPage();
+        }
+
+        private void newPage() throws IOException {
+            if (stream != null) {
+                stream.close();
+            }
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            stream = new PDPageContentStream(document, page);
+            y = TOP;
+        }
+
+        private void ensureSpace(float height) throws IOException {
+            if (y - height < MARGIN) {
+                newPage();
+            }
+        }
+
+        void skip(float height) {
+            y -= height;
+        }
+
+        void line(String text, PDType1Font font, float size, float advance) throws IOException {
+            ensureSpace(advance);
+            stream.beginText();
+            stream.setFont(font, size);
+            stream.newLineAtOffset(MARGIN, y);
+            stream.showText(fit(text, font, size, TEXT_WIDTH));
+            stream.endText();
+            y -= advance;
+        }
+
+        void row(List<String> cells, PDType1Font font) throws IOException {
+            ensureSpace(ROW_HEIGHT);
+            float columnWidth = TEXT_WIDTH / cells.size();
+            for (int i = 0; i < cells.size(); i++) {
+                stream.beginText();
+                stream.setFont(font, 10);
+                stream.newLineAtOffset(MARGIN + i * columnWidth, y);
+                stream.showText(fit(cells.get(i), font, 10, columnWidth - 6));
+                stream.endText();
+            }
+            y -= ROW_HEIGHT;
+        }
+
+        void close() throws IOException {
+            stream.close();
+        }
+
+        /** Standard PDF fonts only cover Latin-1, so other characters become '?'; long text is cut to fit its column. */
+        private static String fit(String text, PDType1Font font, float size, float maxWidth) throws IOException {
+            StringBuilder safe = new StringBuilder();
+            (text == null ? "" : text).codePoints().forEach(cp ->
+                    safe.append(cp >= 32 && cp <= 126 || cp >= 160 && cp <= 255 ? (char) cp : '?'));
+            String result = safe.toString();
+            if (font.getStringWidth(result) / 1000 * size <= maxWidth) {
+                return result;
+            }
+            while (result.length() > 1 && font.getStringWidth(result + "...") / 1000 * size > maxWidth) {
+                result = result.substring(0, result.length() - 1);
+            }
+            return result + "...";
         }
     }
 }

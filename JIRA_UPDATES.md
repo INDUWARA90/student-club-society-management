@@ -196,7 +196,7 @@ Files: `User.emailDigestEnabled`, `NotificationService.sendDailyDigests`, `MailS
 
 The schema is now owned by versioned migrations (`db/migration`): V1 = the original schema (column-for-column what existing dev databases have), V2 = venues/resource library/event comments/alumni, V3 = the hardening work — V2 and V3 are idempotent so they are safe on databases Hibernate already upgraded. Existing databases are baselined at V1 automatically; Hibernate only validates (`ddl-auto: validate`), so an entity change without a migration fails fast. Verified on an empty database, on a Hibernate-upgraded database, and on a clone of the real dev database (all rows and Presidents preserved).
 
-Files: `db/migration/V1…V3`, `application.yml`, `spring-boot-starter-flyway`, `docker-compose.yml`, `.env.example`. Test plan: 26.3, 26.8, section 30.
+Files: `db/migration/V1…V4`, `application.yml`, `spring-boot-starter-flyway`, `docker-compose.yml`, `.env.example`. Test plan: 26.3, 26.8, section 30.
 
 ## 35. Bug: images and long text could not be stored (tinytext columns)
 
@@ -218,6 +218,21 @@ Files: `.github/workflows/backend.yml`, `.github/workflows/frontend.yml`, `.gith
 
 Note for the team: workflow YAML was schema-validated and the deploy scripts' shell logic was exercised against a locally started instance, but GitHub Actions and the Docker images could not be run during authoring — watch the first run of each pipeline.
 
+## 38. Project-proposal gaps closed: user management, richer reports, participation history, backups, accessibility
+
+Checked the app against `PROJECT_PROPOSAL new.pdf` and closed what was missing.
+
+- **UC02 / US14 Manage users (Super Admin):** `GET/POST /api/admin/users`, `PUT /api/admin/users/{id}`, `POST …/{id}/deactivate|activate`, page `/admin/users` (search, role filter, paging, create, edit name/email/role, deactivate/reactivate). New `users.active` column (V4). A deactivated account can't sign in (checked after the password, so it isn't revealed to guessers) and its existing tokens stop working immediately. Guard rails: you can't change or deactivate yourself and the last active Super Admin can't be demoted or deactivated. Every action is written to the audit log.
+- **UC12 Cancel membership:** "Leave club" now asks for confirmation.
+- **UC11/UC13 Reports:** club CSV/PDF gain "Club information", "Activities and participation" (per event: going, attended, no-shows, rating) and, for officers/staff only, "Members"; the university report lists each approved club with its member and event counts. The PDF is now multi-page tables, safe for non-Latin text. CSV escaping moved to a shared `CsvSupport`.
+- **Student participation view:** `GET /api/attendance/me` and page `/participation` ("My participation").
+- **NFR11 Backups:** compose `backup` service running `scripts/backup.sh` (daily gzipped dump, verified complete, newest 14 kept) and `scripts/restore.sh`; `docs/DEPLOYMENT.md` "Backups" also covers managed-MySQL backups.
+- **NFR10 Accessibility:** skip-to-content link, dialogs move/trap/restore focus, error toasts are announced as alerts.
+
+Files: `UserAdminController/Service`, `MyAttendanceController`, `AnalyticsService`, `CsvSupport`, `V4__user_active_flag.sql`, `UserManagementPage`, `MyParticipationPage`, `Modal`, `AppLayout`, `scripts/*.sh`, `docker-compose.yml`, `.gitattributes`, `docs/DEPLOYMENT.md`. Test plan: section 31.
+
+Note for the team: the backup container and restore script could not be run against Docker during authoring (Docker Desktop was not running); the script's dump/verify/prune logic was exercised locally with a stand-in `mysqldump`. Try `docker compose up` and section 31.21–31.24 once.
+
 ---
 
 ### How to add these manually in Jira
@@ -225,4 +240,4 @@ Note for the team: workflow YAML was schema-validated and the deploy scripts' sh
 1. Open the `SCRUM` project → Backlog.
 2. Create issue → type **Story** → paste the heading as the **Summary** and the paragraph below it as the **Description**.
 3. Leave **Status** at its default (To Do) — don't move any of these to Done.
-4. Repeat for all 37 (items 1–14 mirror SCRUM-29…SCRUM-42 if those already exist; items 15–37 are new).
+4. Repeat for all 38 (items 1–14 mirror SCRUM-29…SCRUM-42 if those already exist; items 15–38 are new).

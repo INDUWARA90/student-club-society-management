@@ -243,6 +243,17 @@ class AuthServiceTest {
     }
 
     @Test
+    void login_deactivatedAccount_isRefusedAndNoTokenIssued() {
+        user.setActive(false);
+        when(userRepository.findByEmail("ada@example.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("ada@example.com", "password123")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("deactivated");
+        verify(jwtService, never()).generateToken(any(), anyString(), anyString());
+    }
+
+    @Test
     void changePassword_revokesOldSessionsAndReturnsFreshToken() {
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("current-pass", "hashed")).thenReturn(true);

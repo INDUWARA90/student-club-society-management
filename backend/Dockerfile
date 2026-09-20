@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- build -----------------------------------------------------------------------------------------------------
-FROM maven:3-eclipse-temurin-24 AS build
+FROM maven:3-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn -q -B dependency:go-offline
@@ -10,7 +10,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.m2 mvn -q -B -DskipTests package
 
 # ---- run -------------------------------------------------------------------------------------------------------
-FROM eclipse-temurin:22-jre-jammy
+FROM eclipse-temurin:21-jre-noble
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \

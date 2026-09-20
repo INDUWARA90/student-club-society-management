@@ -25,6 +25,13 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    # Stay on the Java 21 LTS line (matches java.version in pom.xml). Non-LTS releases such as 22-24 stop receiving
+    # security patches within months and made the image scan fail; patch updates to the 21 images still arrive.
+    ignore:
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "maven"
+        update-types: ["version-update:semver-major"]
     labels: [dependencies, backend]
 
   - package-ecosystem: docker

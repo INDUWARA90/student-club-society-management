@@ -269,7 +269,6 @@ function DashboardPage() {
               accent="text-role-advisor"
               links={[
                 { to: '/advisor/pending-events', label: 'Review pending events' },
-                { to: '/advisor/clubs', label: 'All clubs (read-only)' },
                 { to: '/analytics', label: 'University-wide analytics' },
               ]}
             />

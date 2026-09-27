@@ -17,6 +17,7 @@ function ProfilePage() {
   const navigate = useNavigate()
   const user = useSelector((state) => state.auth.user)
   const { showToast } = useToast()
+  const isStudent = user?.role === 'STUDENT'
   const [uploading, setUploading] = useState(false)
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
@@ -43,7 +44,7 @@ function ProfilePage() {
       updateProfile({
         name,
         email,
-        graduationYear: graduationYear ? Number(graduationYear) : null,
+        graduationYear: isStudent && graduationYear ? Number(graduationYear) : null,
         emailNotificationsEnabled,
         emailDigestEnabled,
       }),
@@ -170,20 +171,22 @@ function ProfilePage() {
                 />
               </div>
             </div>
-            <div className="sm:w-1/2 sm:pr-2">
-              <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="profile-grad-year">
-                Graduation year (optional)
-              </label>
-              <input
-                id="profile-grad-year"
-                type="number"
-                min="1950"
-                max="2100"
-                className={inputClass}
-                value={graduationYear}
-                onChange={(e) => setGraduationYear(e.target.value)}
-              />
-            </div>
+            {isStudent && (
+              <div className="sm:w-1/2 sm:pr-2">
+                <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="profile-grad-year">
+                  Graduation year (optional)
+                </label>
+                <input
+                  id="profile-grad-year"
+                  type="number"
+                  min="1950"
+                  max="2100"
+                  className={inputClass}
+                  value={graduationYear}
+                  onChange={(e) => setGraduationYear(e.target.value)}
+                />
+              </div>
+            )}
             <div className="space-y-2 rounded-lg bg-surface-muted p-3 dark:bg-surface-dark">
               <label className="flex items-center gap-2 text-sm text-ink dark:text-ink-dark">
                 <input

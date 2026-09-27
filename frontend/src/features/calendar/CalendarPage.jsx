@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, List, LayoutGrid } from 'lucide-react'
+import { ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, List, LayoutGrid, MapPin } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -234,23 +234,49 @@ function CalendarPage() {
       )}
 
       {activeDay && (
-        <Modal title={activeDay.toLocaleDateString(undefined, { dateStyle: 'full' })} onClose={() => setActiveDay(null)}>
-          <div className="space-y-2">
+        <Modal
+          title={activeDay.toLocaleDateString(undefined, { dateStyle: 'full' })}
+          onClose={() => setActiveDay(null)}
+          maxWidth="max-w-xl"
+          overlayClassName="bg-transparent backdrop-blur-[2px]"
+        >
+          <div className="mb-4 flex items-center gap-2 text-sm text-ink-muted dark:text-ink-dark-muted">
+            <CalendarDays className="h-4 w-4 text-brand-500" />
+            {activeDayEvents.length} event{activeDayEvents.length === 1 ? '' : 's'} scheduled
+          </div>
+          <div className="space-y-3">
             {activeDayEvents.map((event) => (
               <Link
                 key={event.id}
                 to={`/events/${event.id}`}
                 onClick={() => setActiveDay(null)}
-                className="block rounded-lg border border-border p-3 transition-fast hover:bg-surface-muted dark:border-border-dark dark:hover:bg-surface-dark"
+                className="group relative block overflow-hidden rounded-xl border border-border bg-surface-muted/50 p-4 transition-fast hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card-hover dark:border-border-dark dark:bg-surface-dark dark:hover:border-brand-500/50"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium text-ink dark:text-ink-dark">{event.title}</p>
-                  <Badge tone={toneForClub(event.clubId)}>{event.clubName}</Badge>
+                <span className="absolute inset-y-0 left-0 w-1 bg-brand-gradient" />
+                <div className="flex items-start justify-between gap-3 pl-2">
+                  <div className="min-w-0">
+                    <Badge tone={toneForClub(event.clubId)}>{event.clubName}</Badge>
+                    <p className="mt-2 truncate text-base font-semibold text-ink dark:text-ink-dark">{event.title}</p>
+                  </div>
+                  <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted transition-fast group-hover:text-brand-500 dark:text-ink-dark-muted" />
                 </div>
-                <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">
-                  {formatTime(event.eventDate)}
-                  {event.location ? ` · ${event.location}` : ''}
-                </p>
+                <div className="mt-3 space-y-1 pl-2 text-xs text-ink-muted dark:text-ink-dark-muted">
+                  <p className="flex items-center gap-1.5">
+                    <Clock3 className="h-3.5 w-3.5 text-brand-500" />
+                    {formatTime(event.eventDate)}
+                  </p>
+                  {event.location && (
+                    <p className="flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-brand-500" />
+                      <span className="truncate">{event.location}</span>
+                    </p>
+                  )}
+                </div>
+                {event.description && (
+                  <p className="mt-3 line-clamp-2 pl-2 text-sm text-ink-muted dark:text-ink-dark-muted">
+                    {event.description}
+                  </p>
+                )}
               </Link>
             ))}
           </div>

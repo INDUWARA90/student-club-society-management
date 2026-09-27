@@ -38,6 +38,8 @@ const NAV_LINKS = [
   { to: '/certificates', label: 'Certificates', icon: Award },
 ]
 
+const ADVISOR_HIDDEN_LINKS = new Set(['/alumni', '/participation', '/certificates'])
+
 const ADMIN_LINKS = [
   { to: '/admin/users', label: 'Users', icon: UserCog },
   { to: '/admin/pending-clubs', label: 'Pending clubs', icon: ClipboardCheck },
@@ -48,7 +50,6 @@ const ADMIN_LINKS = [
 
 const ADVISOR_LINKS = [
   { to: '/advisor/pending-events', label: 'Pending events', icon: ClipboardCheck },
-  { to: '/advisor/clubs', label: 'All clubs', icon: Users },
   { to: '/analytics', label: 'Analytics', icon: TrendingUp },
 ]
 
@@ -151,6 +152,8 @@ function AppLayout() {
   const roleLinks =
     user?.role === 'SUPER_ADMIN' ? ADMIN_LINKS : user?.role === 'FACULTY_ADVISOR' ? ADVISOR_LINKS : null
   const roleTitle = user?.role === 'SUPER_ADMIN' ? 'Administration' : 'Advisor tools'
+  const visibleNavLinks =
+    user?.role === 'FACULTY_ADVISOR' ? NAV_LINKS.filter((link) => !ADVISOR_HIDDEN_LINKS.has(link.to)) : NAV_LINKS
 
   return (
     <div className="app-backdrop min-h-svh">
@@ -173,7 +176,7 @@ function AppLayout() {
 
         <nav aria-label="Main" className="mt-6 flex-1 overflow-y-auto">
           <div className="space-y-0.5">
-            {NAV_LINKS.map((link) => (
+            {visibleNavLinks.map((link) => (
               <SidebarLink key={link.to} {...link} />
             ))}
           </div>
@@ -231,9 +234,11 @@ function AppLayout() {
             >
               {themeMode === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
             </button>
-            <Link to="/certificates" aria-label="My certificates" className={`${iconButton} lg:hidden`}>
-              <Award className="h-[18px] w-[18px]" />
-            </Link>
+            {user?.role !== 'FACULTY_ADVISOR' && (
+              <Link to="/certificates" aria-label="My certificates" className={`${iconButton} lg:hidden`}>
+                <Award className="h-[18px] w-[18px]" />
+              </Link>
+            )}
             <NotificationBell />
             <Link
               to="/profile"

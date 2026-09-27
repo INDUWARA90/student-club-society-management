@@ -8,7 +8,7 @@ const FOCUSABLE =
  * Accessible modal dialog: backdrop click + Esc close, focus moves into the dialog when it opens, Tab stays inside
  * it, and focus returns to whatever opened it when it closes.
  */
-function Modal({ title, onClose, children, maxWidth = 'max-w-lg' }) {
+function Modal({ title, onClose, children, maxWidth = 'max-w-lg', overlayClassName = 'bg-black/40 backdrop-blur-sm' }) {
   const dialogRef = useRef(null)
   const onCloseRef = useRef(onClose)
 
@@ -53,7 +53,7 @@ function Modal({ title, onClose, children, maxWidth = 'max-w-lg' }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${overlayClassName}`}
       onClick={onClose}
     >
       <div

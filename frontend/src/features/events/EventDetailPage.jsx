@@ -97,6 +97,7 @@ function EventDetailPage() {
   }
 
   async function handleRsvp() {
+    if (!canRsvp) return
     try {
       if (Number(event.fee) > 0) {
         await api.post('/payments', { type: 'EVENT', referenceId: eventId, amount: event.fee })
@@ -214,6 +215,7 @@ function EventDetailPage() {
   const isOfficer = OFFICER_POSITIONS.includes(myPosition)
   const isPresident = myPosition === 'PRESIDENT'
   const alreadyAttended = attendance.some((a) => a.userId === user?.id)
+  const canRsvp = !event.cancelled && event.approvalStatus === 'APPROVED'
 
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-8">
@@ -258,7 +260,7 @@ function EventDetailPage() {
       )}
       {!event.cancelled && event.approvalStatus === 'PENDING' && (
         <p className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
-          Waiting for Faculty Advisor approval — not visible to students yet.
+          Waiting for Faculty Advisor approval — registration will open after approval.
         </p>
       )}
       {!event.cancelled && event.approvalStatus === 'REJECTED' && (
@@ -288,7 +290,7 @@ function EventDetailPage() {
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 
       <div className="mt-6 flex flex-wrap gap-2">
-        {!myRsvpStatus && !event.cancelled && (
+        {!myRsvpStatus && canRsvp && (
           <Button onClick={handleRsvp}>
             <CheckCircle2 className="h-4 w-4" />
             {Number(event.fee) > 0 ? `RSVP (pay ${event.fee})` : 'RSVP'}
@@ -313,11 +315,15 @@ function EventDetailPage() {
       )}
       {alreadyAttended ? (
         <p className="mt-2 text-xs text-success">You are checked in.</p>
-      ) : (
+      ) : event.approvalStatus === 'PENDING' ? (
         <p className="mt-2 text-xs text-ink-muted dark:text-ink-dark-muted">
-          To check in at the event, scan the QR code the organisers are showing.
+          Check-in details will be available after the event is approved.
         </p>
-      )}
+      ) : event.approvalStatus === 'APPROVED' && !event.cancelled ? (
+        <p className="mt-2 text-xs text-ink-muted dark:text-ink-dark-muted">
+          At the event, scan the QR code shown by the organisers to check in.
+        </p>
+      ) : null}
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">

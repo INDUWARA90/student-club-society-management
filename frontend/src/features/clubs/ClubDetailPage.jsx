@@ -134,6 +134,7 @@ function ClubDetailPage() {
   const canManageLedger = LEDGER_POSITIONS.includes(myMembership?.position)
   const canManageRecords = RECORDS_POSITIONS.includes(myMembership?.position)
   const isPresident = myMembership?.position === 'PRESIDENT'
+  const canJoinClub = user?.role === 'STUDENT'
   const effectiveMembershipStatus =
     joinStatus === 'LEFT' ? null : joinStatus || (myMembership ? 'APPROVED' : pendingRequests.some((p) => p.userId === user?.id) ? 'PENDING' : null)
 
@@ -171,6 +172,7 @@ function ClubDetailPage() {
   }
 
   async function handleJoin() {
+    if (!canJoinClub) return
     const fee = Number(club.membershipFee) || 0
     if (fee > 0) {
       // The fee is paid up front (it is refunded if the request is rejected or withdrawn).
@@ -407,7 +409,7 @@ function ClubDetailPage() {
                 Leave club
               </Button>
             )}
-            {effectiveMembershipStatus !== 'APPROVED' && !club.archived && (
+            {canJoinClub && effectiveMembershipStatus !== 'APPROVED' && !club.archived && (
               <Button size="sm" onClick={handleJoin} disabled={effectiveMembershipStatus === 'PENDING'}>
                 <UserPlus className="h-3.5 w-3.5" />
                 {effectiveMembershipStatus === 'PENDING'

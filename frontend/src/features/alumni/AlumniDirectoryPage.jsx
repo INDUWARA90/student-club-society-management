@@ -34,7 +34,7 @@ function AlumniDirectoryPage() {
       {alumni === null && (
         <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-16" />
+            <Skeleton key={i} className="h-20" />
           ))}
         </div>
       )}
@@ -47,20 +47,59 @@ function AlumniDirectoryPage() {
       )}
 
       {alumni !== null && visible.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {visible.map((a) => (
-            <Card key={a.id} interactive={false} className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-gradient-soft text-brand-500">
-                <GraduationCap className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-medium text-ink dark:text-ink-dark">{a.name}</p>
-                <p className="text-xs text-ink-muted dark:text-ink-dark-muted">Class of {a.graduationYear}</p>
-              </div>
-            </Card>
-          ))}
+  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    {visible.map((a) => (
+      <Card 
+        key={a.id} 
+        interactive={true} 
+        className="group flex min-w-0 items-center gap-4 p-4 transition-all duration-200 hover:border-brand-300 hover:shadow-md dark:hover:border-brand-700"
+      >
+        {/* Profile Image or Initials Avatar */}
+        {a.profileImageB64 ? (
+          <img 
+            src={a.profileImageB64} 
+            alt={a.name} 
+            className="h-12 w-12 shrink-0 rounded-xl object-cover ring-2 ring-brand-100 transition-transform duration-200 group-hover:scale-105 dark:ring-brand-900/30" 
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-sm font-bold text-brand-700 ring-2 ring-brand-100/50 transition-transform duration-200 group-hover:scale-105 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/20"
+          >
+            {a.name
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0])
+              .join('')
+              .toUpperCase()}
+          </span>
+        )}
+
+        {/* Main Details (Name & Email) */}
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold text-ink transition-colors group-hover:text-brand-600 dark:text-ink-dark dark:group-hover:text-brand-400">
+            {a.name}
+          </p>
+          <a
+            href={`mailto:${a.email}`}
+            className="mt-0.5 inline-flex items-center gap-1.5 truncate text-xs text-ink-muted transition-colors hover:text-brand-600 dark:text-ink-dark-muted dark:hover:text-brand-300"
+            onClick={(e) => e.stopPropagation()} // Prevent card click if card is interactive
+          >
+            <span className="truncate">{a.email}</span>
+          </a>
         </div>
-      )}
+
+        {/* Graduation Year Badge */}
+        <div className="shrink-0 border-l border-border/60 pl-3.5 text-right dark:border-border-dark/60">
+          <p className="text-base font-bold leading-tight text-brand-600 dark:text-brand-300">
+            {a.graduationYear}
+          </p>
+        </div>
+      </Card>
+    ))}
+  </div>
+)}
     </div>
   )
 }

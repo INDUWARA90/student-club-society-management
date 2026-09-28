@@ -238,7 +238,6 @@ function CalendarPage() {
           title={activeDay.toLocaleDateString(undefined, { dateStyle: 'full' })}
           onClose={() => setActiveDay(null)}
           maxWidth="max-w-xl"
-          overlayClassName="bg-transparent backdrop-blur-[2px]"
         >
           <div className="mb-4 flex items-center gap-2 text-sm text-ink-muted dark:text-ink-dark-muted">
             <CalendarDays className="h-4 w-4 text-brand-500" />

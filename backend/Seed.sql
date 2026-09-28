@@ -47,14 +47,18 @@ SET @u_alice      = UUID_TO_BIN(UUID());
 SET @u_bob        = UUID_TO_BIN(UUID());
 SET @u_carol      = UUID_TO_BIN(UUID());
 SET @u_dave       = UUID_TO_BIN(UUID());
+SET @u_emma       = UUID_TO_BIN(UUID());
+SET @u_frank      = UUID_TO_BIN(UUID());
 
-INSERT INTO users (id, name, email, password_hash, role, profile_image_b64, email_verified, created_at) VALUES
-(@u_superadmin, 'Super Admin',     'superadmin@example.com', @pw_hash, 'SUPER_ADMIN',     NULL, 1, NOW(6)),
-(@u_advisor,    'Faculty Advisor', 'advisor@example.com',    @pw_hash, 'FACULTY_ADVISOR', NULL, 1, NOW(6)),
-(@u_alice,      'Alice Johnson',   'alice@example.com',      @pw_hash, 'STUDENT',         NULL, 1, NOW(6)),
-(@u_bob,        'Bob Smith',       'bob@example.com',        @pw_hash, 'STUDENT',         NULL, 1, NOW(6)),
-(@u_carol,      'Carol Lee',       'carol@example.com',      @pw_hash, 'STUDENT',         NULL, 1, NOW(6)),
-(@u_dave,       'Dave Kim',        'dave@example.com',       @pw_hash, 'STUDENT',         NULL, 1, NOW(6));
+INSERT INTO users (id, name, email, password_hash, role, profile_image_b64, email_verified, graduation_year, created_at) VALUES
+(@u_superadmin, 'Super Admin',     'superadmin@example.com', @pw_hash, 'SUPER_ADMIN',     NULL, 1, NULL, NOW(6)),
+(@u_advisor,    'Faculty Advisor', 'advisor@example.com',    @pw_hash, 'FACULTY_ADVISOR', NULL, 1, NULL, NOW(6)),
+(@u_alice,      'Alice Johnson',   'alice@example.com',      @pw_hash, 'STUDENT',         NULL, 1, NULL, NOW(6)),
+(@u_bob,        'Bob Smith',       'bob@example.com',        @pw_hash, 'STUDENT',         NULL, 1, NULL, NOW(6)),
+(@u_carol,      'Carol Lee',       'carol@example.com',      @pw_hash, 'STUDENT',         NULL, 1, NULL, NOW(6)),
+(@u_dave,       'Dave Kim',        'dave@example.com',       @pw_hash, 'STUDENT',         NULL, 1, NULL, NOW(6)),
+(@u_emma,       'Emma Davis',      'emma.alumni@example.com', @pw_hash, 'STUDENT',         NULL, 1, 2024, NOW(6)),
+(@u_frank,      'Frank Wilson',    'frank.alumni@example.com', @pw_hash, 'STUDENT',         NULL, 1, 2023, NOW(6));
 
 -- ----------------------------------------------------------------------------
 -- Clubs
@@ -153,4 +157,6 @@ INSERT INTO notifications (id, user_id, channel, message, is_read, created_at) V
 --   Student:          bob@example.com     (VP, Tech Innovators)
 --   Student:          carol@example.com   (Member, Tech Innovators)
 --   Student (Pres.):  dave@example.com    (President, Creative Arts Society)
+--   Alumni:           emma.alumni@example.com (Graduated 2024)
+--   Alumni:           frank.alumni@example.com (Graduated 2023)
 -- ============================================================================

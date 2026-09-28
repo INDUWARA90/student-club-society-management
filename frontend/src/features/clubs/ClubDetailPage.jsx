@@ -1,7 +1,7 @@
 import { Archive, CalendarDays, Download, LogOut, Pencil, Plus, UserMinus, UserPlus, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api/axios'
 import Breadcrumbs from '../../components/Breadcrumbs'
 import { useToast } from '../../components/ToastProvider'
@@ -100,6 +100,7 @@ function Donut({ value, total }) {
 
 function ClubDetailPage() {
   const { clubId } = useParams()
+  const navigate = useNavigate()
   const dispatch = useDispatch()
   const user = useSelector((state) => state.auth.user)
   const { showToast } = useToast()
@@ -134,6 +135,7 @@ function ClubDetailPage() {
   const canManageLedger = LEDGER_POSITIONS.includes(myMembership?.position)
   const canManageRecords = RECORDS_POSITIONS.includes(myMembership?.position)
   const isPresident = myMembership?.position === 'PRESIDENT'
+  const canDeleteClub = user?.role === 'SUPER_ADMIN'
   const canJoinClub = user?.role === 'STUDENT'
   const effectiveMembershipStatus =
     joinStatus === 'LEFT' ? null : joinStatus || (myMembership ? 'APPROVED' : pendingRequests.some((p) => p.userId === user?.id) ? 'PENDING' : null)
@@ -215,6 +217,17 @@ function ClubDetailPage() {
       const { data } = await api.post(`/clubs/${clubId}/archive`)
       setClub(data)
       showToast('Club archived')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Something went wrong', 'error')
+    }
+  }
+
+  async function handleDeleteClub() {
+    if (!window.confirm('Delete this club permanently? This action cannot be undone and will remove it from the platform.')) return
+    try {
+      await api.delete(`/clubs/${clubId}`)
+      showToast('Club deleted')
+      navigate('/clubs')
     } catch (e) {
       showToast(e.response?.data?.message || 'Something went wrong', 'error')
     }
@@ -391,6 +404,12 @@ function ClubDetailPage() {
               <Button variant="danger" size="sm" onClick={handleArchiveClub}>
                 <Archive className="h-3.5 w-3.5" />
                 Archive club
+              </Button>
+            )}
+            {canDeleteClub && (
+              <Button variant="danger" size="sm" onClick={handleDeleteClub}>
+                <Archive className="h-3.5 w-3.5" />
+                Delete club
               </Button>
             )}
             {isOfficer && !isPresident && (

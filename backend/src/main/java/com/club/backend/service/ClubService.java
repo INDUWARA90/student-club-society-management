@@ -11,6 +11,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import com.club.backend.config.ApiException;
 import com.club.backend.dto.ClubResponse;
 import com.club.backend.dto.CreateClubRequest;
@@ -47,6 +50,9 @@ public class ClubService {
     private final NotificationService notificationService;
     private final EventService eventService;
     private final EmailVerificationPolicy emailVerificationPolicy;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public ClubResponse createClub(CreateClubRequest request, UserPrincipal principal) {
         if (isBlank(request.name())) {
@@ -263,6 +269,44 @@ public class ClubService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> ApiException.notFound("Club not found"));
         return ClubResponse.from(club);
+    }
+
+    /** Permanently removes a club and its foreign-keyed data. Restricted at the controller to Super Admins. */
+    public void deleteClub(UUID clubId, UserPrincipal principal) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> ApiException.notFound("Club not found"));
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+
+        deleteRelatedClubData(clubId);
+        clubRepository.delete(club);
+        auditLogService.log(actor, "DELETE_CLUB", "CLUB", clubId, club.getName());
+    }
+
+    private void deleteRelatedClubData(UUID clubId) {
+        deleteNative("DELETE FROM announcement_comments WHERE announcement_id IN "
+                + "(SELECT id FROM club_announcements WHERE club_id = :clubId)", clubId);
+        deleteNative("DELETE FROM club_announcements WHERE club_id = :clubId", clubId);
+        deleteNative("DELETE FROM attendance WHERE event_id IN "
+                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
+        deleteNative("DELETE FROM event_feedback WHERE event_id IN "
+                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
+        deleteNative("DELETE FROM event_comments WHERE event_id IN "
+                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
+        deleteNative("DELETE FROM rsvps WHERE event_id IN "
+                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
+        deleteNative("DELETE FROM club_expenses WHERE club_id = :clubId", clubId);
+        deleteNative("DELETE FROM club_resources WHERE club_id = :clubId", clubId);
+        deleteNative("DELETE FROM comment_reports WHERE club_id = :clubId", clubId);
+        deleteNative("DELETE FROM certificates WHERE club_id = :clubId", clubId);
+        deleteNative("DELETE FROM memberships WHERE club_id = :clubId", clubId);
+        deleteNative("DELETE FROM events WHERE club_id = :clubId", clubId);
+    }
+
+    private void deleteNative(String sql, UUID clubId) {
+        entityManager.createNativeQuery(sql)
+                .setParameter("clubId", clubId)
+                .executeUpdate();
     }
 
     private void notifySuperAdmins(String message) {

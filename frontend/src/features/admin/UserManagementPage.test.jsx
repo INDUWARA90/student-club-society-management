@@ -45,6 +45,10 @@ describe('UserManagementPage', () => {
 
     expect(await screen.findByText('Sam Student')).toBeInTheDocument()
     expect(screen.getByText('Gone User')).toBeInTheDocument()
+    expect(screen.getAllByText('Verified')).toHaveLength(2)
+    expect(screen.getByText('Not verified')).toBeInTheDocument()
+    expect(screen.getAllByText('Joined:')).toHaveLength(3)
+    expect(screen.getAllByText('Active')).toHaveLength(2)
     expect(screen.getByText('Deactivated')).toBeInTheDocument()
     expect(screen.getByText('You')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/admin/users', { params: { page: 0, size: 20 } })

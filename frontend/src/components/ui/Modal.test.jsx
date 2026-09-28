@@ -27,6 +27,7 @@ describe('Modal accessibility', () => {
 
     await user.click(opener)
     expect(screen.getByLabelText('First field')).toHaveFocus()
+    expect(screen.getByRole('dialog').parentElement).toHaveClass('backdrop-blur-md')
 
     // Tab order inside the dialog: field -> Save -> Close -> wraps back to the field
     await user.tab()

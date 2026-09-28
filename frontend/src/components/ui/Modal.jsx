@@ -8,7 +8,14 @@ const FOCUSABLE =
  * Accessible modal dialog: backdrop click + Esc close, focus moves into the dialog when it opens, Tab stays inside
  * it, and focus returns to whatever opened it when it closes.
  */
-function Modal({ title, onClose, children, maxWidth = 'max-w-lg', overlayClassName = 'bg-black/40 backdrop-blur-sm' }) {
+function Modal({
+  title,
+  onClose,
+  children,
+  maxWidth = 'max-w-lg',
+  overlayClassName = 'bg-slate-950/25 backdrop-blur-md',
+  panelClassName = '',
+}) {
   const dialogRef = useRef(null)
   const onCloseRef = useRef(onClose)
 
@@ -63,7 +70,7 @@ function Modal({ title, onClose, children, maxWidth = 'max-w-lg', overlayClassNa
         aria-label={title}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`w-full ${maxWidth} rounded-xl border border-border bg-surface p-5 shadow-card-hover outline-none dark:border-border-dark dark:bg-surface-dark-muted`}
+        className={`w-full ${maxWidth} rounded-2xl border border-border/80 bg-surface/95 p-5 shadow-2xl shadow-slate-900/10 outline-none backdrop-blur-sm dark:border-border-dark dark:bg-surface-dark-muted/95 ${panelClassName}`}
       >
         <div className="flex items-center justify-between gap-3">
           {title && <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">{title}</h2>}

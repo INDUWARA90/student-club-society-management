@@ -38,7 +38,8 @@ const NAV_LINKS = [
   { to: '/certificates', label: 'Certificates', icon: Award },
 ]
 
-const ADVISOR_HIDDEN_LINKS = new Set(['/alumni', '/participation', '/certificates'])
+const ADVISOR_HIDDEN_LINKS = new Set(['/participation', '/certificates'])
+const SUPER_ADMIN_HIDDEN_LINKS = new Set(['/participation', '/certificates'])
 
 const ADMIN_LINKS = [
   { to: '/admin/users', label: 'Users', icon: UserCog },
@@ -152,8 +153,13 @@ function AppLayout() {
   const roleLinks =
     user?.role === 'SUPER_ADMIN' ? ADMIN_LINKS : user?.role === 'FACULTY_ADVISOR' ? ADVISOR_LINKS : null
   const roleTitle = user?.role === 'SUPER_ADMIN' ? 'Administration' : 'Advisor tools'
-  const visibleNavLinks =
-    user?.role === 'FACULTY_ADVISOR' ? NAV_LINKS.filter((link) => !ADVISOR_HIDDEN_LINKS.has(link.to)) : NAV_LINKS
+  const hiddenLinks =
+    user?.role === 'SUPER_ADMIN'
+      ? SUPER_ADMIN_HIDDEN_LINKS
+      : user?.role === 'FACULTY_ADVISOR'
+        ? ADVISOR_HIDDEN_LINKS
+        : new Set()
+  const visibleNavLinks = NAV_LINKS.filter((link) => !hiddenLinks.has(link.to))
 
   return (
     <div className="app-backdrop min-h-svh">
@@ -234,7 +240,7 @@ function AppLayout() {
             >
               {themeMode === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
             </button>
-            {user?.role !== 'FACULTY_ADVISOR' && (
+            {user?.role !== 'FACULTY_ADVISOR' && user?.role !== 'SUPER_ADMIN' && (
               <Link to="/certificates" aria-label="My certificates" className={`${iconButton} lg:hidden`}>
                 <Award className="h-[18px] w-[18px]" />
               </Link>

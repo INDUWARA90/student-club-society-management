@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -58,6 +59,14 @@ public class ClubController {
     public ResponseEntity<ClubResponse> updateClub(@PathVariable UUID clubId, @RequestBody CreateClubRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(clubService.updateClub(clubId, request, principal));
+    }
+
+    @DeleteMapping("/{clubId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Void> deleteClub(@PathVariable UUID clubId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        clubService.deleteClub(clubId, principal);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/pending")

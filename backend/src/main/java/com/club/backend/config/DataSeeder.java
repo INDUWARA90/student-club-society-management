@@ -65,6 +65,8 @@ public class DataSeeder implements CommandLineRunner {
         User bob = createUser("Bob Smith", "bob@example.com", Role.STUDENT);
         User carol = createUser("Carol Lee", "carol@example.com", Role.STUDENT);
         User dave = createUser("Dave Kim", "dave@example.com", Role.STUDENT);
+        User emma = createAlumni("Emma Davis", "emma.alumni@example.com", 2024);
+        User frank = createAlumni("Frank Wilson", "frank.alumni@example.com", 2023);
 
         Club techClub = createClub("Tech Innovators", "Tech", "Building cool things with code.", superAdmin);
         Club artClub = createClub("Creative Arts Society", "Cultural", "Painting, sculpture, and more.", superAdmin);
@@ -109,6 +111,17 @@ public class DataSeeder implements CommandLineRunner {
                 .email(email)
                 .passwordHash(passwordEncoder.encode(DEMO_PASSWORD))
                 .role(role)
+                .emailVerified(true)
+                .build());
+    }
+
+    private User createAlumni(String name, String email, int graduationYear) {
+        return userRepository.save(User.builder()
+                .name(name)
+                .email(email)
+                .passwordHash(passwordEncoder.encode(DEMO_PASSWORD))
+                .role(Role.STUDENT)
+                .graduationYear(graduationYear)
                 .emailVerified(true)
                 .build());
     }

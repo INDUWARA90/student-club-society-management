@@ -9,7 +9,6 @@ import {
   LogOut,
   ScrollText,
   Shield,
-  ShieldCheck,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -245,21 +244,6 @@ function DashboardPage() {
                 ))}
               </div>
             </Card>
-          )}
-
-          {user?.role === 'SUPER_ADMIN' && (
-            <QuickLinks
-              title="Super Admin"
-              icon={ShieldCheck}
-              accent="text-role-super"
-              links={[
-                { to: '/admin/users', label: 'Manage users & roles' },
-                { to: '/admin/pending-clubs', label: 'Review pending clubs' },
-                { to: '/analytics', label: 'University-wide analytics' },
-                { to: '/admin/audit-log', label: 'Audit log' },
-                { to: '/admin/venues', label: 'Manage venues' },
-              ]}
-            />
           )}
 
           {user?.role === 'FACULTY_ADVISOR' && (

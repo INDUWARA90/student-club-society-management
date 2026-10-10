@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- build -----------------------------------------------------------------------------------------------------
-FROM maven:3-eclipse-temurin-21 AS build
+FROM maven:3-eclipse-temurin-27 AS build
 WORKDIR /app
 COPY pom.xml .
 # Standard layer caching for dependencies instead of a cache mount

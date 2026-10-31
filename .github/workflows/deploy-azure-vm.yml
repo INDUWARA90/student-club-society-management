@@ -16,7 +16,7 @@ jobs:
   deploy:
     name: Deploy to Azure VM
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Deploy to Azure VM via SSH
@@ -65,17 +65,45 @@ jobs:
               echo ".env configured with VM host and secure secrets."
             fi
 
-            echo "=== Step 4: Rebuilding and Restarting Containers ==="
-            docker compose up -d --build
+            echo "=== Step 4: Ensuring Docker and Swap are Ready ==="
+            # Ensure swap space exists to prevent out-of-memory errors during build
+            if [ ! -f /swapfile ]; then
+              echo "Creating 2GB swap file to prevent build OOM errors..."
+              sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile
+              sudo swapon /swapfile || true
+            fi
 
-            echo "=== Step 5: Cleaning Unused Docker Images ==="
-            docker image prune -f
+            # Install Docker and Compose if not yet installed
+            if ! command -v docker &> /dev/null; then
+              echo "Docker is not installed. Installing Docker and Compose..."
+              sudo apt-get update -y
+              sudo apt-get install -y docker.io docker-compose-v2
+              sudo systemctl enable --now docker
+              sudo usermod -aG docker "$USER" || true
+            fi
 
-            echo "=== Step 6: Verifying Backend Health ==="
+            # Check whether docker command needs sudo in current session
+            DOCKER_CMD="docker compose"
+            if ! docker ps > /dev/null 2>&1; then
+              if sudo docker ps > /dev/null 2>&1; then
+                DOCKER_CMD="sudo docker compose"
+              fi
+            fi
+            echo "Using Docker command: $DOCKER_CMD"
+
+            echo "=== Step 5: Rebuilding and Starting Containers ==="
+            $DOCKER_CMD up -d --build
+
+            echo "=== Step 6: Cleaning Unused Docker Images ==="
+            $DOCKER_CMD image prune -f
+
+            echo "=== Step 7: Verifying Backend Health ==="
             for i in $(seq 1 30); do
               if curl -fsS http://localhost:5000/api/health > /dev/null 2>&1; then
                 echo "SUCCESS: Backend is healthy and responding!"
-                docker compose ps
+                $DOCKER_CMD ps
                 exit 0
               fi
               echo "Waiting for backend to report healthy (attempt $i/30)..."
@@ -83,7 +111,7 @@ jobs:
             done
 
             echo "ERROR: Backend health check timed out."
-            docker compose logs --tail=50 backend || true
+            $DOCKER_CMD logs --tail=50 backend || true
             exit 1
 
       - name: Deployment summary

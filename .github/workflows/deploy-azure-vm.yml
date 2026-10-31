@@ -47,7 +47,7 @@ jobs:
           echo "frontend_image=ghcr.io/${REPO_LOWER}-frontend" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Backend container
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           push: true
@@ -60,7 +60,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push Frontend container
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           push: true

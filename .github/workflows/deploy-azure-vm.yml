@@ -97,7 +97,7 @@ jobs:
             $DOCKER_CMD up -d --build
 
             echo "=== Step 6: Cleaning Unused Docker Images ==="
-            $DOCKER_CMD image prune -f
+            docker image prune -f 2>/dev/null || sudo docker image prune -f 2>/dev/null || true
 
             echo "=== Step 7: Verifying Backend Health ==="
             for i in $(seq 1 30); do

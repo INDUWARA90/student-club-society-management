@@ -24,7 +24,7 @@ public class AuditLogController {
     private final AuditLogService auditLogService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'FACULTY_ADVISOR')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<List<AuditLogResponse>> listAll(@RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         Pageable pageable = PageSupport.pageable(page, size, Sort.unsorted());

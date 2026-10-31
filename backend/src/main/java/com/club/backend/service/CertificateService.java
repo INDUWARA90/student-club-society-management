@@ -63,6 +63,28 @@ public class CertificateService {
         ISSUED, ALREADY_ISSUED, NOT_YET_ELIGIBLE
     }
 
+    record ClubTheme(
+            float pr, float pg, float pb,
+            float sr, float sg, float sb,
+            String ribbonTitle) {}
+
+    static ClubTheme themeForClub(Club club) {
+        String cat = (club != null && club.getCategory() != null) ? club.getCategory().toLowerCase() : "";
+        if (cat.contains("tech") || cat.contains("coding") || cat.contains("robot") || cat.contains("stem") || cat.contains("comput")) {
+            return new ClubTheme(0.10f, 0.22f, 0.48f, 0.85f, 0.65f, 0.12f, "TECHNOLOGY & INNOVATION DIVISION");
+        } else if (cat.contains("art") || cat.contains("cultur") || cat.contains("music") || cat.contains("drama") || cat.contains("design")) {
+            return new ClubTheme(0.52f, 0.10f, 0.22f, 0.82f, 0.62f, 0.15f, "CREATIVE ARTS & CULTURAL DIVISION");
+        } else if (cat.contains("sport") || cat.contains("athlet") || cat.contains("fitness") || cat.contains("recreat")) {
+            return new ClubTheme(0.06f, 0.38f, 0.24f, 0.85f, 0.68f, 0.14f, "ATHLETICS & RECREATION DIVISION");
+        } else if (cat.contains("acad") || cat.contains("scienc") || cat.contains("debat") || cat.contains("business") || cat.contains("financ")) {
+            return new ClubTheme(0.08f, 0.18f, 0.35f, 0.80f, 0.60f, 0.12f, "ACADEMIC SOCIETIES COUNCIL");
+        } else if (cat.contains("commun") || cat.contains("volunt") || cat.contains("social") || cat.contains("environ")) {
+            return new ClubTheme(0.06f, 0.35f, 0.38f, 0.84f, 0.65f, 0.15f, "COMMUNITY & SOCIAL OUTREACH");
+        } else {
+            return new ClubTheme(0.12f, 0.18f, 0.32f, 0.80f, 0.62f, 0.14f, "STUDENT CLUBS & SOCIETIES ASSOCIATION");
+        }
+    }
+
     /** The club's own threshold (set by its President), falling back to the sitewide default. */
     static int thresholdFor(Club club) {
         Integer configured = club.getCertificateThreshold();
@@ -140,7 +162,12 @@ public class CertificateService {
     public CertificateVerificationResponse verify(String code) {
         return certificateRepository.findByVerificationCode(code == null ? "" : code.trim())
                 .map(c -> new CertificateVerificationResponse(
-                        true, c.getUser().getName(), c.getClub().getName(), c.getIssuedAt()))
+                        true,
+                        c.getUser().getName(),
+                        c.getClub().getName(),
+                        c.getClub().getCategory(),
+                        c.getClub().getLogoB64(),
+                        c.getIssuedAt()))
                 .orElse(new CertificateVerificationResponse(false, null, null, null));
     }
 
@@ -159,40 +186,170 @@ public class CertificateService {
         }
 
         try (PDDocument document = new PDDocument()) {
-            PDPage page = new PDPage(PDRectangle.A4);
+            float pageWidth = PDRectangle.A4.getHeight(); // 841.89f (Landscape)
+            float pageHeight = PDRectangle.A4.getWidth(); // 595.28f
+            PDPage page = new PDPage(new PDRectangle(pageWidth, pageHeight));
             document.addPage(page);
+
+            ClubTheme theme = themeForClub(certificate.getClub());
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
                 PDType1Font titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
                 PDType1Font bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+                PDType1Font italicFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_OBLIQUE);
+                PDType1Font serifBold = new PDType1Font(Standard14Fonts.FontName.TIMES_BOLD);
 
-                content.beginText();
-                content.setFont(titleFont, 24);
-                content.newLineAtOffset(80, 700);
-                content.showText("Certificate of Participation");
-                content.endText();
+                // Outer border (Club Theme Primary)
+                content.setStrokingColor(theme.pr(), theme.pg(), theme.pb());
+                content.setLineWidth(3.0f);
+                content.addRect(24, 24, pageWidth - 48, pageHeight - 48);
+                content.stroke();
 
-                String issuedDate = certificate.getIssuedAt().atZone(ZoneOffset.UTC)
-                        .format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
-                content.beginText();
-                content.setFont(bodyFont, 14);
-                content.newLineAtOffset(80, 640);
-                content.showText("This certifies that " + pdfSafe(certificate.getUser().getName()));
-                content.newLineAtOffset(0, -24);
-                content.showText("has actively participated in " + pdfSafe(certificate.getClub().getName()));
-                content.newLineAtOffset(0, -24);
-                content.showText("Issued on " + issuedDate);
-                content.endText();
+                // Inner border (Theme Secondary Gold)
+                content.setStrokingColor(theme.sr(), theme.sg(), theme.sb());
+                content.setLineWidth(1.0f);
+                content.addRect(30, 30, pageWidth - 60, pageHeight - 60);
+                content.stroke();
 
-                content.beginText();
-                content.setFont(bodyFont, 10);
-                content.newLineAtOffset(80, 120);
-                content.showText("Verification code: " + certificate.getVerificationCode());
-                if (frontendUrl != null && !frontendUrl.isBlank()) {
-                    content.newLineAtOffset(0, -14);
-                    content.showText("Verify at: " + frontendUrl + "/verify-certificate/" + certificate.getVerificationCode());
+                // Corner flourishes
+                content.setNonStrokingColor(theme.sr(), theme.sg(), theme.sb());
+                content.addRect(30, 30, 6, 6);
+                content.addRect(pageWidth - 36, 30, 6, 6);
+                content.addRect(30, pageHeight - 36, 6, 6);
+                content.addRect(pageWidth - 36, pageHeight - 36, 6, 6);
+                content.fill();
+
+                // 1. Top Ribbon Division Header
+                drawCenteredText(content, titleFont, 8.5f, "[ " + theme.ribbonTitle() + " ]", 528, pageWidth, theme.sr(), theme.sg(), theme.sb());
+
+                // 2. University / Association Title
+                drawCenteredText(content, titleFont, 12f, "STUDENT CLUBS & SOCIETIES ASSOCIATION", 504, pageWidth, theme.pr(), theme.pg(), theme.pb());
+
+                // 3. Main Certificate Heading
+                drawCenteredText(content, titleFont, 24f, "CERTIFICATE OF MERIT & PARTICIPATION", 460, pageWidth, theme.pr(), theme.pg(), theme.pb());
+
+                // Decorative horizontal divider
+                content.setStrokingColor(theme.sr(), theme.sg(), theme.sb());
+                content.setLineWidth(1.2f);
+                content.moveTo(240, 448);
+                content.lineTo(pageWidth - 240, 448);
+                content.stroke();
+
+                // 4. Conferred subtitle
+                drawCenteredText(content, italicFont, 11f, "This certificate is proudly conferred upon", 422, pageWidth, 0.42f, 0.42f, 0.45f);
+
+                // 5. Recipient Name
+                String recipientName = certificate.getUser() != null ? certificate.getUser().getName() : "Student";
+                String safeRecipient = pdfSafe(recipientName);
+                float nameFontSize = 26f;
+                float nameWidth = serifBold.getStringWidth(safeRecipient) / 1000f * nameFontSize;
+                while (nameWidth > (pageWidth - 160) && nameFontSize > 16f) {
+                    nameFontSize -= 1f;
+                    nameWidth = serifBold.getStringWidth(safeRecipient) / 1000f * nameFontSize;
                 }
+                drawCenteredText(content, serifBold, nameFontSize, safeRecipient, 382, pageWidth, theme.pr(), theme.pg(), theme.pb());
+
+                // Underline recipient name
+                float nameStartX = Math.max(80f, (pageWidth - nameWidth) / 2f);
+                content.setStrokingColor(theme.sr(), theme.sg(), theme.sb());
+                content.setLineWidth(1.2f);
+                content.moveTo(nameStartX - 15, 372);
+                content.lineTo(nameStartX + nameWidth + 15, 372);
+                content.stroke();
+
+                // 6. Meritorious citation
+                drawCenteredText(content, bodyFont, 11f, "for commendable dedication, active participation, and meritorious engagement in", 340, pageWidth, 0.35f, 0.35f, 0.38f);
+
+                // 7. Club Name
+                String clubName = certificate.getClub() != null ? certificate.getClub().getName() : "Student Society";
+                drawFittedCenteredText(content, titleFont, 18f, 13f, pageWidth - 140, clubName, 310, pageWidth, theme.pr(), theme.pg(), theme.pb());
+
+                // 8. Club Category & Member Standing
+                String clubCategory = (certificate.getClub() != null && certificate.getClub().getCategory() != null)
+                        ? certificate.getClub().getCategory() : "General";
+                drawCenteredText(content, italicFont, 10f, clubCategory + " Society  -  Member in Good Standing", 286, pageWidth, 0.45f, 0.45f, 0.48f);
+
+                // 9. Issued Date
+                String issuedDate = certificate.getIssuedAt() != null
+                        ? certificate.getIssuedAt().atZone(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("MMMM d, yyyy"))
+                        : "Recent";
+                drawCenteredText(content, bodyFont, 9.5f, "Officially conferred on " + issuedDate, 262, pageWidth, 0.45f, 0.45f, 0.48f);
+
+                // 10. Dual Signatures & Gold Center Seal
+                // Left: President
+                content.setStrokingColor(0.55f, 0.55f, 0.60f);
+                content.setLineWidth(1.0f);
+                content.moveTo(90f, 160f);
+                content.lineTo(260f, 160f);
+                content.stroke();
+
+                content.beginText();
+                content.setFont(titleFont, 9f);
+                content.setNonStrokingColor(theme.pr(), theme.pg(), theme.pb());
+                content.newLineAtOffset(90f, 146f);
+                content.showText("Club President");
                 content.endText();
+
+                content.beginText();
+                content.setFont(italicFont, 8f);
+                content.setNonStrokingColor(0.40f, 0.40f, 0.45f);
+                content.newLineAtOffset(90f, 134f);
+                String safeClubShort = pdfSafe(clubName.length() > 28 ? clubName.substring(0, 28) + "..." : clubName);
+                content.showText(safeClubShort);
+                content.endText();
+
+                // Right: Faculty Advisor
+                content.moveTo(pageWidth - 260f, 160f);
+                content.lineTo(pageWidth - 90f, 160f);
+                content.stroke();
+
+                content.beginText();
+                content.setFont(titleFont, 9f);
+                content.setNonStrokingColor(theme.pr(), theme.pg(), theme.pb());
+                content.newLineAtOffset(pageWidth - 260f, 146f);
+                content.showText("Faculty Advisor");
+                content.endText();
+
+                content.beginText();
+                content.setFont(italicFont, 8f);
+                content.setNonStrokingColor(0.40f, 0.40f, 0.45f);
+                content.newLineAtOffset(pageWidth - 260f, 134f);
+                content.showText("Office of Student Affairs");
+                content.endText();
+
+                // Center Seal
+                float sealW = 140f;
+                float sealH = 44f;
+                float sealX = (pageWidth - sealW) / 2f;
+                float sealY = 130f;
+
+                content.setNonStrokingColor(0.98f, 0.96f, 0.90f);
+                content.addRect(sealX, sealY, sealW, sealH);
+                content.fill();
+
+                content.setStrokingColor(theme.sr(), theme.sg(), theme.sb());
+                content.setLineWidth(1.4f);
+                content.addRect(sealX, sealY, sealW, sealH);
+                content.stroke();
+
+                content.setLineWidth(0.6f);
+                content.addRect(sealX + 2.5f, sealY + 2.5f, sealW - 5f, sealH - 5f);
+                content.stroke();
+
+                drawCenteredText(content, titleFont, 7.5f, "* OFFICIAL SEAL *", sealY + 26f, pageWidth, theme.sr(), theme.sg(), theme.sb());
+                drawCenteredText(content, titleFont, 7f, "VERIFIED CREDENTIAL", sealY + 12f, pageWidth, theme.pr(), theme.pg(), theme.pb());
+
+                // 11. Security Footer
+                content.setStrokingColor(0.82f, 0.82f, 0.85f);
+                content.setLineWidth(0.75f);
+                content.moveTo(50f, 65f);
+                content.lineTo(pageWidth - 50f, 65f);
+                content.stroke();
+
+                drawCenteredText(content, bodyFont, 8.5f, "Verification Code: " + certificate.getVerificationCode(), 48f, pageWidth, 0.35f, 0.35f, 0.40f);
+                if (frontendUrl != null && !frontendUrl.isBlank()) {
+                    drawCenteredText(content, italicFont, 7.5f, "Verify authenticity at: " + frontendUrl + "/verify-certificate/" + certificate.getVerificationCode(), 36f, pageWidth, theme.pr(), theme.pg(), theme.pb());
+                }
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -201,6 +358,32 @@ public class CertificateService {
         } catch (IOException e) {
             throw new RuntimeException("Failed to generate certificate PDF", e);
         }
+    }
+
+    private static void drawCenteredText(PDPageContentStream content, PDType1Font font, float fontSize,
+                                        String text, float y, float pageWidth,
+                                        float r, float g, float b) throws IOException {
+        String safe = pdfSafe(text);
+        float textWidth = font.getStringWidth(safe) / 1000f * fontSize;
+        float x = Math.max(30f, (pageWidth - textWidth) / 2f);
+        content.setNonStrokingColor(r, g, b);
+        content.beginText();
+        content.setFont(font, fontSize);
+        content.newLineAtOffset(x, y);
+        content.showText(safe);
+        content.endText();
+    }
+
+    private static void drawFittedCenteredText(PDPageContentStream content, PDType1Font font, float maxFontSize,
+                                              float minFontSize, float maxWidth,
+                                              String text, float y, float pageWidth,
+                                              float r, float g, float b) throws IOException {
+        String safe = pdfSafe(text);
+        float fontSize = maxFontSize;
+        while (fontSize > minFontSize && (font.getStringWidth(safe) / 1000f * fontSize) > maxWidth) {
+            fontSize -= 0.5f;
+        }
+        drawCenteredText(content, font, fontSize, safe, y, pageWidth, r, g, b);
     }
 
     /** The built-in PDF fonts only cover Latin-1; anything else (or a control character) would abort rendering. */

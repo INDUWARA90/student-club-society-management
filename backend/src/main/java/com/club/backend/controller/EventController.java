@@ -113,7 +113,7 @@ public class EventController {
     }
 
     @GetMapping("/events/pending")
-    @PreAuthorize("hasRole('FACULTY_ADVISOR') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('FACULTY_ADVISOR')")
     public ResponseEntity<List<EventResponse>> listPendingApprovals() {
         return ResponseEntity.ok(eventService.listPendingApprovals());
     }

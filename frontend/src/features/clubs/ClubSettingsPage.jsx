@@ -408,13 +408,25 @@ function ClubSettingsPage() {
     isSuperAdmin || isFacultyAdvisor || officerMemberships.length > 0 || managedClubs.length > 0
 
   const availableTabs = useMemo(() => {
+    if (isSuperAdmin) {
+      return [
+        { id: 'Profile', label: 'Profile', icon: Layers },
+        { id: 'Notifications', label: 'Announcements & Alerts', icon: Megaphone },
+      ]
+    }
     return [
       { id: 'Profile', label: 'Profile', icon: Layers },
       { id: 'Notifications', label: 'Announcements & Alerts', icon: Megaphone },
       { id: 'Roles & Permissions', label: 'Roles & Permissions', icon: Shield },
       { id: 'Privacy Settings', label: 'Privacy & Access', icon: Lock },
     ]
-  }, [])
+  }, [isSuperAdmin])
+
+  useEffect(() => {
+    if (isSuperAdmin && (activeTab === 'Roles & Permissions' || activeTab === 'Privacy Settings')) {
+      setActiveTab('Profile')
+    }
+  }, [isSuperAdmin, activeTab])
 
   if (loading) {
     return (
@@ -511,7 +523,9 @@ function ClubSettingsPage() {
             Club Settings
           </h1>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {hasClubRole
+            {isSuperAdmin
+              ? 'Configure profile parameters, society branding, broadcast alerts, and club management.'
+              : hasClubRole
               ? 'Configure profile parameters, assign officer roles, broadcast alerts, and access controls.'
               : 'View society profile parameters and live platform preview.'}
           </p>
@@ -668,7 +682,7 @@ function ClubSettingsPage() {
         )}
 
         {/* TAB 3: ROLES & PERMISSIONS */}
-        {hasClubRole && activeTab === 'Roles & Permissions' && (
+        {!isSuperAdmin && hasClubRole && activeTab === 'Roles & Permissions' && (
           <div className="lg:col-span-9 space-y-6">
             {/* Roles Matrix Overview Card */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
@@ -882,7 +896,7 @@ function ClubSettingsPage() {
         )}
 
         {/* TAB 4: PRIVACY & ACCESS SETTINGS */}
-        {hasClubRole && activeTab === 'Privacy Settings' && (
+        {!isSuperAdmin && hasClubRole && activeTab === 'Privacy Settings' && (
           <div className="lg:col-span-9 space-y-6">
             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-3 mb-5">

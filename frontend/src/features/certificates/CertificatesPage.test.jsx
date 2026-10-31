@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
@@ -56,6 +56,7 @@ describe('CertificatesPage', () => {
         id: 'cert-1',
         clubId: 'club-1',
         clubName: 'Robotics & AI Society',
+        clubCategory: 'Technology',
         issuedAt: '2026-05-15T10:00:00Z',
         verificationCode: 'ROBO-2026-X99',
       },
@@ -63,10 +64,39 @@ describe('CertificatesPage', () => {
 
     expect(await screen.findByText('Robotics & AI Society')).toBeInTheDocument()
     expect(screen.getByText('ROBO-2026-X99')).toBeInTheDocument()
+    expect(screen.getByText('Technology')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /download pdf/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /verify/i })).toHaveAttribute(
       'href',
       '/verify-certificate/ROBO-2026-X99',
     )
+  })
+
+  it('opens interactive certificate preview modal when clicking view', async () => {
+    renderPage([
+      {
+        id: 'cert-2',
+        clubId: 'club-2',
+        clubName: 'Drama & Theatre Society',
+        clubCategory: 'Arts & Culture',
+        holderName: 'Eleanor Vance',
+        issuedAt: '2026-06-10T12:00:00Z',
+        verificationCode: 'DRAMA-2026-V1',
+      },
+    ])
+
+    expect(await screen.findByText('Drama & Theatre Society')).toBeInTheDocument()
+    const viewButton = screen.getByRole('button', { name: /view/i })
+    fireEvent.click(viewButton)
+
+    // Modal elements
+    expect(screen.getByText(/official society certificate/i)).toBeInTheDocument()
+    expect(screen.getByText('Eleanor Vance')).toBeInTheDocument()
+    expect(screen.getByText(/certificate of merit & participation/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /close preview/i })).toBeInTheDocument()
+
+    // Close preview
+    fireEvent.click(screen.getByRole('button', { name: /close preview/i }))
+    expect(screen.queryByText(/official society certificate/i)).not.toBeInTheDocument()
   })
 })

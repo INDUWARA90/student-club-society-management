@@ -275,4 +275,42 @@ describe('ClubSettingsPage', () => {
       expect.objectContaining({ showBudgetToMembers: true }),
     )
   })
+
+  it('removes Roles & Permissions and Privacy & Access tabs for Super Admin in Club Settings', async () => {
+    const axios = (await import('../../api/axios')).default
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/clubs/c1')) {
+        return Promise.resolve({
+          data: {
+            id: 'c1',
+            name: 'Photography Club',
+            category: 'Arts & Culture',
+            description: 'Capturing campus moments through lens and creativity since 2018.',
+          },
+        })
+      }
+      if (url === '/clubs') {
+        return Promise.resolve({
+          data: [{ id: 'c1', name: 'Photography Club' }],
+        })
+      }
+      return Promise.resolve({ data: [] })
+    })
+
+    renderWithProviders(<ClubSettingsPage />, {
+      initialState: {
+        auth: { user: { id: 'admin-1', name: 'Super Admin', role: 'SUPER_ADMIN' } },
+      },
+    })
+
+    expect(await screen.findByRole('heading', { level: 1, name: /club settings/i })).toBeInTheDocument()
+
+    // Profile and Announcements & Alerts tabs must be visible
+    expect(await screen.findByRole('button', { name: /^profile$/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /announcements & alerts/i })).toBeInTheDocument()
+
+    // Roles & Permissions and Privacy & Access must be removed for Super Admin
+    expect(screen.queryByRole('button', { name: /roles & permissions/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /privacy & access/i })).not.toBeInTheDocument()
+  })
 })

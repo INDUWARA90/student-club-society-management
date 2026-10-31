@@ -34,6 +34,24 @@ describe('VerifyCertificatePage', () => {
     expect(api.get).toHaveBeenCalledWith('/certificates/verify/abc-123')
   })
 
+  it('displays club category when available for genuine certificate', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        valid: true,
+        holderName: 'Alan Turing',
+        clubName: 'Robotics Club',
+        clubCategory: 'Technology',
+        issuedAt: '2026-02-20T10:00:00Z',
+      },
+    })
+
+    renderAt('robo-777')
+
+    expect(await screen.findByText(/genuine certificate/i)).toBeInTheDocument()
+    expect(screen.getByText('Alan Turing')).toBeInTheDocument()
+    expect(screen.getByText(/technology society/i)).toBeInTheDocument()
+  })
+
   it('says so plainly when the code does not match anything', async () => {
     api.get.mockResolvedValue({ data: { valid: false } })
 

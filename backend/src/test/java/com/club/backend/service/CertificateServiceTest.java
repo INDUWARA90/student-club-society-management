@@ -227,6 +227,33 @@ class CertificateServiceTest {
         assertThat(response.valid()).isTrue();
         assertThat(response.holderName()).isEqualTo("Stu");
         assertThat(response.clubName()).isEqualTo("Chess Club");
+        assertThat(response.clubCategory()).isNull();
+    }
+
+    @Test
+    void verify_knownCode_withCategoryAndLogo() {
+        club.setCategory("Technology");
+        club.setLogoB64("data:image/png;base64,demo");
+        Certificate certificate = Certificate.builder().user(user).club(club).verificationCode("abc-456").build();
+        when(certificateRepository.findByVerificationCode("abc-456")).thenReturn(Optional.of(certificate));
+
+        CertificateVerificationResponse response = certificateService.verify("abc-456");
+
+        assertThat(response.valid()).isTrue();
+        assertThat(response.clubCategory()).isEqualTo("Technology");
+        assertThat(response.clubLogoB64()).isEqualTo("data:image/png;base64,demo");
+    }
+
+    @Test
+    void generatePdf_appliesCategoryThemingWithoutError() {
+        for (String category : List.of("Technology", "Arts & Culture", "Sports & Fitness", "Academic", "Community Service", "General")) {
+            Club themedClub = Club.builder().id(UUID.randomUUID()).name(category + " Society").category(category).build();
+            Certificate certificate = Certificate.builder().id(UUID.randomUUID()).user(user).club(themedClub).verificationCode("CERT-THEME-" + category).build();
+            when(certificateRepository.findById(certificate.getId())).thenReturn(Optional.of(certificate));
+
+            byte[] pdf = certificateService.generateCertificatePdf(certificate.getId(), user.getId());
+            assertThat(pdf).isNotEmpty();
+        }
     }
 
     @Test

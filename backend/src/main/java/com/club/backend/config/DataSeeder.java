@@ -27,6 +27,7 @@ import com.club.backend.entity.Role;
 import com.club.backend.entity.Rsvp;
 import com.club.backend.entity.RsvpStatus;
 import com.club.backend.entity.User;
+import com.club.backend.entity.Venue;
 import com.club.backend.repository.AttendanceRepository;
 import com.club.backend.repository.ClubAnnouncementRepository;
 import com.club.backend.repository.ClubExpenseRepository;
@@ -35,6 +36,7 @@ import com.club.backend.repository.EventRepository;
 import com.club.backend.repository.MembershipRepository;
 import com.club.backend.repository.RsvpRepository;
 import com.club.backend.repository.UserRepository;
+import com.club.backend.repository.VenueRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -55,10 +57,13 @@ public class DataSeeder implements CommandLineRunner {
     private final AttendanceRepository attendanceRepository;
     private final ClubAnnouncementRepository announcementRepository;
     private final ClubExpenseRepository expenseRepository;
+    private final VenueRepository venueRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
+        seedVenuesIfMissing();
+
         if (userRepository.count() > 0) {
             seedExpensesIfMissing();
             return;
@@ -122,14 +127,17 @@ public class DataSeeder implements CommandLineRunner {
                 .content("Welcome to Tech Innovators! Our first meetup is next week.")
                 .build());
 
+        Venue labVenue = venueRepository.findByNameIgnoreCase("Innovation & Robotics Lab").orElse(null);
+        Venue auditoriumVenue = venueRepository.findByNameIgnoreCase("Grand Auditorium").orElse(null);
+
         Event hackNight = createEvent(techClub, "Hack Night", "An evening of building side projects.",
-                Instant.now().plus(7, ChronoUnit.DAYS), BigDecimal.ZERO, 20, false, EventApprovalStatus.NOT_REQUIRED);
+                Instant.now().plus(7, ChronoUnit.DAYS), BigDecimal.ZERO, 20, false, EventApprovalStatus.NOT_REQUIRED, labVenue);
 
         Event pastWorkshop = createEvent(techClub, "Intro to Git Workshop", "Beginner-friendly Git workshop.",
-                Instant.now().minus(14, ChronoUnit.DAYS), BigDecimal.ZERO, null, false, EventApprovalStatus.NOT_REQUIRED);
+                Instant.now().minus(14, ChronoUnit.DAYS), BigDecimal.ZERO, null, false, EventApprovalStatus.NOT_REQUIRED, labVenue);
 
         Event artShow = createEvent(artClub, "Annual Art Show", "Showcasing student artwork, ticketed entry.",
-                Instant.now().plus(21, ChronoUnit.DAYS), new BigDecimal("7500"), 50, true, EventApprovalStatus.PENDING);
+                Instant.now().plus(21, ChronoUnit.DAYS), new BigDecimal("7500"), 50, true, EventApprovalStatus.PENDING, auditoriumVenue);
 
         rsvpRepository.save(Rsvp.builder().event(hackNight).user(bob).status(RsvpStatus.GOING).build());
         rsvpRepository.save(Rsvp.builder().event(hackNight).user(carol).status(RsvpStatus.GOING).build());
@@ -219,13 +227,38 @@ public class DataSeeder implements CommandLineRunner {
                 .build());
     }
 
+    private void seedVenuesIfMissing() {
+        createVenueIfMissing("Grand Auditorium", "Main Academic Complex", 500);
+        createVenueIfMissing("Innovation & Robotics Lab", "Engineering Block B", 80);
+        createVenueIfMissing("Conference Hall A", "Student Center Level 2", 150);
+        createVenueIfMissing("Conference Hall B", "Student Center Level 2", 100);
+        createVenueIfMissing("Multimedia & Podcast Studio", "Creative Arts Pavilion", 35);
+        createVenueIfMissing("University Sports Arena", "Athletics Complex", 1200);
+        createVenueIfMissing("STEM Seminar Room 101", "Science & Research Tower", 60);
+        createVenueIfMissing("Outdoor Amphitheater", "Campus Central Plaza", 300);
+    }
+
+    private Venue createVenueIfMissing(String name, String building, Integer capacity) {
+        return venueRepository.findByNameIgnoreCase(name)
+                .orElseGet(() -> venueRepository.save(Venue.builder()
+                        .name(name)
+                        .building(building)
+                        .capacity(capacity)
+                        .active(true)
+                        .build()));
+    }
+
     private Event createEvent(Club club, String title, String description, Instant eventDate, BigDecimal fee,
-            Integer capacity, boolean requiresFaApproval, EventApprovalStatus approvalStatus) {
+            Integer capacity, boolean requiresFaApproval, EventApprovalStatus approvalStatus, Venue venue) {
+        Instant endDate = eventDate != null ? eventDate.plus(2, ChronoUnit.HOURS) : null;
         return eventRepository.save(Event.builder()
                 .club(club)
                 .title(title)
                 .description(description)
                 .eventDate(eventDate)
+                .endDate(endDate)
+                .location(venue != null ? venue.getName() : null)
+                .venue(venue)
                 .fee(fee)
                 .capacity(capacity)
                 .requiresFaApproval(requiresFaApproval)

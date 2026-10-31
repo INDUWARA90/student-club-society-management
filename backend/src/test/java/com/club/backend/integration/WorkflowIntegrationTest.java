@@ -102,6 +102,8 @@ class WorkflowIntegrationTest extends IntegrationTestBase {
                 .contentType(JSON).content("{\"title\":\"Gala\",\"eventDate\":\"" + inDays(5) + "\",\"fee\":100,\"budget\":500}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.budget").value(500)).andReturn();
         String eventId = read(created, "$.id");
+        User advisor = user("Advisor", Role.FACULTY_ADVISOR);
+        mvc.perform(post("/api/events/" + eventId + "/approve").header("Authorization", bearer(advisor))).andExpect(status().isOk());
         String pay = "{\"type\":\"EVENT\",\"referenceId\":\"" + eventId + "\",\"amount\":0.01}";
 
         // Pay first; the sent amount is ignored.

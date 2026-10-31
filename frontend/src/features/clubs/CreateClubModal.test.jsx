@@ -67,7 +67,7 @@ describe('CreateClubModal', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('sends the membership fee and certificate threshold with the club', async () => {
+  it('does not display membership fee or certificate threshold fields and sends defaults', async () => {
     const axios = (await import('../../api/axios')).default
     axios.post.mockResolvedValueOnce({
       data: { id: 'c2', name: 'Robotics', category: 'Tech', status: 'APPROVED' },
@@ -75,32 +75,19 @@ describe('CreateClubModal', () => {
     renderWithProviders(<CreateClubModal onClose={vi.fn()} onCreated={vi.fn()} />)
     const user = userEvent.setup()
 
+    expect(screen.queryByLabelText(/membership fee/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/events for certificate/i)).not.toBeInTheDocument()
+
     await user.type(screen.getByLabelText(/^name$/i), 'Robotics')
     await user.type(screen.getByLabelText(/category/i), 'Tech')
-    await user.clear(screen.getByLabelText(/membership fee/i))
-    await user.type(screen.getByLabelText(/membership fee/i), '50')
-    await user.clear(screen.getByLabelText(/events for certificate/i))
-    await user.type(screen.getByLabelText(/events for certificate/i), '5')
     await user.click(screen.getByRole('button', { name: /create club/i }))
 
     await waitFor(() =>
       expect(axios.post).toHaveBeenLastCalledWith(
         '/clubs',
-        expect.objectContaining({ name: 'Robotics', membershipFee: 50, certificateThreshold: 5 }),
+        expect.objectContaining({ name: 'Robotics', membershipFee: 0, certificateThreshold: 3 }),
       ),
     )
-  })
-
-  it('pre-fills the fee and threshold when editing an existing club', () => {
-    renderWithProviders(
-      <CreateClubModal
-        club={{ id: 'c1', name: 'Chess', category: 'Games', joinPolicy: 'OPEN', membershipFee: 120, certificateThreshold: 4 }}
-        onClose={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByLabelText(/membership fee/i)).toHaveValue(120)
-    expect(screen.getByLabelText(/events for certificate/i)).toHaveValue(4)
   })
 
   it('does not render when a normal student attempts to open create mode', () => {

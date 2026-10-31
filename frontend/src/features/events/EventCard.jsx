@@ -145,6 +145,14 @@ export default function EventCard({
             >
               <span>Manage Event</span>
             </button>
+          ) : isFacultyAdvisor ? (
+            <button
+              type="button"
+              onClick={handleActionClick}
+              className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 flex items-center justify-center gap-1.5 active:scale-[0.99] dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 shadow-xs"
+            >
+              <span>View Event</span>
+            </button>
           ) : isGoing ? (
             <button
               type="button"

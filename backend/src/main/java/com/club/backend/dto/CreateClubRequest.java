@@ -11,9 +11,15 @@ public record CreateClubRequest(
         JoinPolicy joinPolicy,
         String logoB64,
         BigDecimal membershipFee,
-        Integer certificateThreshold) {
+        Integer certificateThreshold,
+        Boolean showBudgetToMembers) {
 
     public CreateClubRequest(String name, String description, String category, JoinPolicy joinPolicy, String logoB64) {
-        this(name, description, category, joinPolicy, logoB64, null, null);
+        this(name, description, category, joinPolicy, logoB64, null, null, null);
+    }
+
+    public CreateClubRequest(String name, String description, String category, JoinPolicy joinPolicy, String logoB64,
+            BigDecimal membershipFee, Integer certificateThreshold) {
+        this(name, description, category, joinPolicy, logoB64, membershipFee, certificateThreshold, null);
     }
 }

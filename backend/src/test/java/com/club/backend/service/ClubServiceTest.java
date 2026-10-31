@@ -23,6 +23,8 @@ import com.club.backend.entity.Club;
 import com.club.backend.entity.ClubStatus;
 import com.club.backend.entity.JoinPolicy;
 import com.club.backend.entity.Membership;
+import com.club.backend.entity.MembershipPosition;
+import com.club.backend.entity.MembershipStatus;
 import com.club.backend.entity.Role;
 import com.club.backend.entity.User;
 import com.club.backend.repository.ClubRepository;
@@ -378,6 +380,75 @@ class ClubServiceTest {
         when(clubRepository.save(any(Club.class))).thenAnswer(inv -> inv.getArgument(0));
 
         assertThat(clubService.unarchiveClub(club.getId(), superAdminPrincipal).archived()).isFalse();
+    }
+
+    @Test
+    void setBudgetVisibility_president_success() {
+        Club club = Club.builder().id(UUID.randomUUID()).name("Chess Club").status(ClubStatus.APPROVED)
+                .showBudgetToMembers(false).createdBy(student).build();
+        Membership presidentMembership = Membership.builder()
+                .id(UUID.randomUUID())
+                .user(student)
+                .club(club)
+                .status(MembershipStatus.APPROVED)
+                .position(MembershipPosition.PRESIDENT)
+                .build();
+
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(membershipRepository.findByUserIdAndClubId(student.getId(), club.getId()))
+                .thenReturn(Optional.of(presidentMembership));
+        when(clubRepository.save(any(Club.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClubResponse response = clubService.setBudgetVisibility(club.getId(), true, studentPrincipal);
+        assertThat(response.showBudgetToMembers()).isTrue();
+    }
+
+    @Test
+    void setBudgetVisibility_facultyAdvisor_throwsForbidden() {
+        Club club = Club.builder().id(UUID.randomUUID()).name("Chess Club").status(ClubStatus.APPROVED)
+                .showBudgetToMembers(false).createdBy(student).build();
+        User advisor = User.builder().id(UUID.randomUUID()).name("Advisor").email("advisor@uni.edu")
+                .role(Role.FACULTY_ADVISOR).build();
+        UserPrincipal advisorPrincipal = new UserPrincipal(advisor);
+
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+
+        assertThatThrownBy(() -> clubService.setBudgetVisibility(club.getId(), true, advisorPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Faculty Advisors have view-only access");
+    }
+
+    @Test
+    void setBudgetVisibility_vp_throwsForbidden() {
+        Club club = Club.builder().id(UUID.randomUUID()).name("Chess Club").status(ClubStatus.APPROVED)
+                .showBudgetToMembers(false).createdBy(student).build();
+        Membership vpMembership = Membership.builder()
+                .id(UUID.randomUUID())
+                .user(student)
+                .club(club)
+                .status(MembershipStatus.APPROVED)
+                .position(MembershipPosition.VP)
+                .build();
+
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(membershipRepository.findByUserIdAndClubId(student.getId(), club.getId()))
+                .thenReturn(Optional.of(vpMembership));
+
+        assertThatThrownBy(() -> clubService.setBudgetVisibility(club.getId(), true, studentPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Only the club president can toggle budget visibility");
+    }
+
+    @Test
+    void setBudgetVisibility_superAdmin_success() {
+        Club club = Club.builder().id(UUID.randomUUID()).name("Chess Club").status(ClubStatus.APPROVED)
+                .showBudgetToMembers(false).createdBy(student).build();
+
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(clubRepository.save(any(Club.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClubResponse response = clubService.setBudgetVisibility(club.getId(), true, superAdminPrincipal);
+        assertThat(response.showBudgetToMembers()).isTrue();
     }
 
 

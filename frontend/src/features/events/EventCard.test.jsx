@@ -85,4 +85,19 @@ describe('EventCard', () => {
     await user.click(approveBtn)
     expect(handleReview).toHaveBeenCalledWith(expect.anything(), 'evt-1', true)
   })
+
+  it('displays View Event button in read-only mode for Faculty Advisor on approved events, without RSVP option', () => {
+    render(
+      <MemoryRouter>
+        <EventCard
+          event={sampleEvent}
+          isFacultyAdvisor={true}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('button', { name: /view event/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /rsvp now/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /rsvp confirmed/i })).not.toBeInTheDocument()
+  })
 })

@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -28,7 +30,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.club.backend.config.ApiException;
 import com.club.backend.dto.CreateEventRequest;
+import com.club.backend.dto.EventConflictResponse;
 import com.club.backend.dto.EventResponse;
+import com.club.backend.dto.NextAvailableSlotResponse;
 import com.club.backend.entity.Club;
 import com.club.backend.entity.ClubStatus;
 import com.club.backend.entity.Event;
@@ -78,6 +82,8 @@ class EventServiceTest {
     private NotificationService notificationService;
     @Mock
     private CheckInTokenService checkInTokenService;
+    @Mock
+    private VenueService venueService;
 
     @InjectMocks
     private EventService eventService;
@@ -134,7 +140,26 @@ class EventServiceTest {
 
         assertThatThrownBy(() -> eventService.createEvent(club.getId(), request("Tournament", future, null, null, null, null), principal))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("officers");
+                .hasMessageContaining("Club President");
+    }
+
+    @Test
+    void createEvent_bySuperAdmin_throwsForbidden() {
+        User superAdmin = User.builder().id(UUID.randomUUID()).role(Role.SUPER_ADMIN).build();
+        UserPrincipal adminPrincipal = new UserPrincipal(superAdmin);
+
+        assertThatThrownBy(() -> eventService.createEvent(club.getId(), request("Admin Event", future, null, null, null, null), adminPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Only the Club President can create events");
+    }
+
+    @Test
+    void createEvent_nonPresidentOfficer_throws() {
+        asOfficer(MembershipPosition.VP);
+
+        assertThatThrownBy(() -> eventService.createEvent(club.getId(), request("Tournament", future, null, null, null, null), principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Club President");
     }
 
     @Test
@@ -186,15 +211,54 @@ class EventServiceTest {
     }
 
     @Test
-    void createEvent_feeBelowThreshold_doesNotRequireApproval() {
+    void createEvent_freeEventByPresident_requiresFaApprovalAndNotifiesAdvisors() {
         asOfficer(MembershipPosition.PRESIDENT);
+        User advisor = User.builder().id(UUID.randomUUID()).name("FA").email("fa@example.com").role(Role.FACULTY_ADVISOR).build();
+        when(userRepository.findByRole(Role.FACULTY_ADVISOR)).thenReturn(List.of(advisor));
 
         EventResponse response = eventService.createEvent(club.getId(),
                 request("Meetup", future, BigDecimal.ZERO, null, null, null), principal);
 
-        assertThat(response.requiresFaApproval()).isFalse();
-        assertThat(response.approvalStatus()).isEqualTo(EventApprovalStatus.NOT_REQUIRED);
-        verify(notificationService, never()).notifyUsers(anyCollection(), anyString());
+        assertThat(response.requiresFaApproval()).isTrue();
+        assertThat(response.approvalStatus()).isEqualTo(EventApprovalStatus.PENDING);
+        verify(notificationService).notifyUsers(eq(List.of(advisor.getId())), anyString());
+    }
+
+    @Test
+    void resubmitEvent_rejectedEvent_resetsToPendingAndNotifiesAdvisor() {
+        Event event = existingEvent(BigDecimal.ZERO, EventApprovalStatus.REJECTED);
+        event.setRejectionReason("Incomplete agenda");
+        asOfficer(MembershipPosition.PRESIDENT);
+        User advisor = User.builder().id(UUID.randomUUID()).name("FA").email("fa@example.com").role(Role.FACULTY_ADVISOR).build();
+        when(userRepository.findByRole(Role.FACULTY_ADVISOR)).thenReturn(List.of(advisor));
+
+        EventResponse response = eventService.resubmitEvent(event.getId(), principal);
+
+        assertThat(response.approvalStatus()).isEqualTo(EventApprovalStatus.PENDING);
+        assertThat(response.rejectionReason()).isNull();
+        assertThat(response.requiresFaApproval()).isTrue();
+        verify(notificationService).notifyUsers(eq(List.of(advisor.getId())), contains("resubmitted"));
+    }
+
+    @Test
+    void resubmitEvent_alreadyApproved_throws() {
+        Event event = existingEvent(BigDecimal.ZERO, EventApprovalStatus.APPROVED);
+        asOfficer(MembershipPosition.PRESIDENT);
+
+        assertThatThrownBy(() -> eventService.resubmitEvent(event.getId(), principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("already approved");
+    }
+
+    @Test
+    void resubmitEvent_byFacultyAdvisor_throwsForbidden() {
+        Event event = existingEvent(BigDecimal.ZERO, EventApprovalStatus.REJECTED);
+        User advisor = User.builder().id(UUID.randomUUID()).role(Role.FACULTY_ADVISOR).build();
+        UserPrincipal advisorPrincipal = new UserPrincipal(advisor);
+
+        assertThatThrownBy(() -> eventService.resubmitEvent(event.getId(), advisorPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Only the Club President can resubmit events");
     }
 
     @Test
@@ -367,7 +431,7 @@ class EventServiceTest {
     @Test
     void cancelEvent_marksCancelledRefundsAndNotifies() {
         Event event = existingEvent(new BigDecimal("100"), EventApprovalStatus.NOT_REQUIRED);
-        asOfficer(MembershipPosition.SECRETARY);
+        asOfficer(MembershipPosition.PRESIDENT);
         User attendee = User.builder().id(UUID.randomUUID()).name("A").email("a@example.com").role(Role.STUDENT).build();
         when(rsvpRepository.findByEventIdAndStatus(event.getId(), RsvpStatus.GOING))
                 .thenReturn(List.of(Rsvp.builder().event(event).user(attendee).status(RsvpStatus.GOING).build()));
@@ -391,7 +455,17 @@ class EventServiceTest {
 
         assertThatThrownBy(() -> eventService.cancelEvent(event.getId(), null, principal))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("officers");
+                .hasMessageContaining("Club President");
+    }
+
+    @Test
+    void cancelEvent_nonPresidentOfficer_throws() {
+        Event event = existingEvent(BigDecimal.ZERO, EventApprovalStatus.NOT_REQUIRED);
+        asOfficer(MembershipPosition.VP);
+
+        assertThatThrownBy(() -> eventService.cancelEvent(event.getId(), null, principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Club President");
     }
 
     @Test
@@ -582,4 +656,113 @@ class EventServiceTest {
         assertThat(png).isNotEmpty();
         verify(checkInTokenService).generate(event.getId());
     }
+
+    // ---- advisor history
+
+    @Test
+    void listAdvisorEventHistory_advisorSeesAllOversightEvents() {
+        Event pendingEvent = existingEvent(new BigDecimal("6000"), EventApprovalStatus.PENDING);
+        pendingEvent.setRequiresFaApproval(true);
+        when(eventRepository.findAll()).thenReturn(List.of(pendingEvent));
+
+        User advisor = User.builder().id(UUID.randomUUID()).role(Role.FACULTY_ADVISOR).build();
+        UserPrincipal advisorPrincipal = new UserPrincipal(advisor);
+
+        List<EventResponse> results = eventService.listAdvisorEventHistory("ALL", advisorPrincipal);
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).id()).isEqualTo(pendingEvent.getId());
+    }
+
+    @Test
+    void listAdvisorEventHistory_studentOfficerSeesOwnClubEvents() {
+        Event myClubEvent = existingEvent(new BigDecimal("7000"), EventApprovalStatus.PENDING);
+        myClubEvent.setRequiresFaApproval(true);
+
+        Club otherClub = Club.builder().id(UUID.randomUUID()).name("Other Club").build();
+        Event otherEvent = Event.builder().id(UUID.randomUUID()).club(otherClub).title("Other").fee(new BigDecimal("8000"))
+                .approvalStatus(EventApprovalStatus.PENDING).requiresFaApproval(true).build();
+
+        when(eventRepository.findAll()).thenReturn(List.of(myClubEvent, otherEvent));
+
+        Membership officer = Membership.builder().club(club).user(president)
+                .position(MembershipPosition.PRESIDENT).status(MembershipStatus.APPROVED).build();
+        when(membershipRepository.findByUserIdAndStatus(president.getId(), MembershipStatus.APPROVED))
+                .thenReturn(List.of(officer));
+
+        List<EventResponse> results = eventService.listAdvisorEventHistory("ALL", principal);
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).id()).isEqualTo(myClubEvent.getId());
+    }
+
+    @Test
+    void listAdvisorEventHistory_ordinaryStudentGetsEmptyList() {
+        User ordinaryStudent = User.builder().id(UUID.randomUUID()).role(Role.STUDENT).build();
+        UserPrincipal studentPrincipal = new UserPrincipal(ordinaryStudent);
+
+        when(membershipRepository.findByUserIdAndStatus(ordinaryStudent.getId(), MembershipStatus.APPROVED))
+                .thenReturn(List.of());
+
+        List<EventResponse> results = eventService.listAdvisorEventHistory("ALL", studentPrincipal);
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void createEvent_overlappingLocationBooking_throwsConflict() {
+        asOfficer(MembershipPosition.PRESIDENT);
+        Event existing = Event.builder().id(UUID.randomUUID()).club(club).title("Conflicting Workshop").location("Room 101").eventDate(future).build();
+        when(eventRepository.findConflictingLocationBookings(eq("Room 101"), any(), any(), any()))
+                .thenReturn(List.of(existing));
+
+        CreateEventRequest req = new CreateEventRequest("New Workshop", "Desc", "Room 101", null, future, null, null, null, future.plusSeconds(3600), null);
+
+        assertThatThrownBy(() -> eventService.createEvent(club.getId(), req, principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Room 101");
+    }
+
+    @Test
+    void checkConflict_whenVenueBooked_returnsDetailedConflictAndAlternatives() {
+        Venue venue = Venue.builder().id(UUID.randomUUID()).name("Auditorium").building("Main").active(true).build();
+        Venue altVenue = Venue.builder().id(UUID.randomUUID()).name("Hall B").building("Science").active(true).build();
+        Event existing = Event.builder().id(UUID.randomUUID()).club(club).title("Hackathon").venue(venue).eventDate(future).endDate(future.plusSeconds(7200)).build();
+
+        when(venueRepository.findById(venue.getId())).thenReturn(Optional.of(venue));
+        when(eventRepository.findConflictingBookings(eq(venue.getId()), any(), any(), any())).thenReturn(List.of(existing));
+        when(venueService.findNextAvailableSlot(eq(venue.getId()), any(), anyLong()))
+                .thenReturn(new NextAvailableSlotResponse(true, future.plusSeconds(7200), future.plusSeconds(14400)));
+        when(venueRepository.findByActiveTrue()).thenReturn(List.of(venue, altVenue));
+        when(eventRepository.findConflictingBookings(eq(altVenue.getId()), any(), any(), any())).thenReturn(List.of());
+
+        EventConflictResponse result = eventService.checkConflict(venue.getId(), null, future, future.plusSeconds(7200), null);
+
+        assertThat(result.hasConflict()).isTrue();
+        assertThat(result.conflictingEventTitle()).isEqualTo("Hackathon");
+        assertThat(result.alternativeVenues()).hasSize(1);
+        assertThat(result.alternativeVenues().get(0).name()).isEqualTo("Hall B");
+    }
+
+    @Test
+    void reviewEvent_approve_whenApprovedBookingConflicts_throwsConflict() {
+        Venue venue = Venue.builder().id(UUID.randomUUID()).name("Main Hall").active(true).build();
+        Event pendingEvent = existingEvent(BigDecimal.ZERO, EventApprovalStatus.PENDING);
+        pendingEvent.setVenue(venue);
+        pendingEvent.setEventDate(future);
+        pendingEvent.setEndDate(future.plusSeconds(3600));
+
+        Event alreadyApproved = Event.builder().id(UUID.randomUUID()).club(club).title("Approved Gala")
+                .venue(venue).eventDate(future).endDate(future.plusSeconds(3600)).build();
+
+        when(eventRepository.findById(pendingEvent.getId())).thenReturn(Optional.of(pendingEvent));
+        when(eventRepository.findApprovedConflictingBookings(eq(venue.getId()), any(), any(), eq(pendingEvent.getId())))
+                .thenReturn(List.of(alreadyApproved));
+
+        User advisor = User.builder().id(UUID.randomUUID()).role(Role.FACULTY_ADVISOR).build();
+        UserPrincipal advisorPrincipal = new UserPrincipal(advisor);
+
+        assertThatThrownBy(() -> eventService.reviewEvent(pendingEvent.getId(), true, null, advisorPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("already approved for \"Approved Gala\"");
+    }
 }
+
+

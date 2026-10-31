@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Clock,
   GraduationCap,
+  History,
   MapPin,
   Megaphone,
   Shield,
@@ -98,6 +99,7 @@ function DashboardPage() {
   const [auditLogs, setAuditLogs] = useState([])
   const [pendingEvents, setPendingEvents] = useState([])
   const [advisorRequests, setAdvisorRequests] = useState([])
+  const [universityStats, setUniversityStats] = useState(null)
 
   const isFacultyAdvisor = user?.role === 'FACULTY_ADVISOR'
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
@@ -118,7 +120,7 @@ function DashboardPage() {
     const pNotifications = api.get('/notifications/me').then((r) => r.data).catch(() => [])
     const pClubs = api.get('/clubs').then((r) => r.data).catch(() => [])
     const pAudit =
-      user?.role === 'SUPER_ADMIN'
+      user?.role === 'SUPER_ADMIN' || user?.role === 'FACULTY_ADVISOR'
         ? api.get('/audit-logs').then((r) => r.data).catch(() => [])
         : Promise.resolve([])
     const pPendingEvents =
@@ -129,6 +131,10 @@ function DashboardPage() {
       user?.role === 'FACULTY_ADVISOR' || user?.role === 'SUPER_ADMIN'
         ? api.get('/advisor-requests').then((r) => r.data).catch(() => [])
         : Promise.resolve([])
+    const pUniversityStats =
+      user?.role === 'FACULTY_ADVISOR' || user?.role === 'SUPER_ADMIN'
+        ? api.get('/analytics/university').then((r) => r.data).catch(() => null)
+        : Promise.resolve(null)
 
     Promise.all([
       pMemberships,
@@ -139,7 +145,8 @@ function DashboardPage() {
       pAudit,
       pPendingEvents,
       pAdvisorRequests,
-    ]).then(([memData, evtData, rsvpData, notifData, clubData, auditData, pendingEvtData, advData]) => {
+      pUniversityStats,
+    ]).then(([memData, evtData, rsvpData, notifData, clubData, auditData, pendingEvtData, advData, uStatsData]) => {
       if (!mounted) return
       setMemberships(Array.isArray(memData) ? memData : [])
       setEvents(Array.isArray(evtData) ? evtData : [])
@@ -149,6 +156,7 @@ function DashboardPage() {
       setAuditLogs(Array.isArray(auditData) ? auditData : [])
       setPendingEvents(Array.isArray(pendingEvtData) ? pendingEvtData : [])
       setAdvisorRequests(Array.isArray(advData) ? advData : [])
+      if (uStatsData) setUniversityStats(uStatsData)
     })
 
     return () => {
@@ -466,26 +474,15 @@ function DashboardPage() {
                 Welcome back, {user?.name || 'Super Admin'}! ⚡
               </h1>
               <p className="mt-2 text-xs md:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                You have administrative oversight across all <strong className="font-semibold text-slate-800 dark:text-slate-200">{clubsList.length} campus societies</strong> and <strong className="font-semibold text-slate-800 dark:text-slate-200">{events.length} campus events</strong>. Create, update, or delete events, manage societies, and oversee platform security logs below.
+                You have administrative oversight across all <strong className="font-semibold text-slate-800 dark:text-slate-200">{clubsList.length} campus societies</strong> and <strong className="font-semibold text-slate-800 dark:text-slate-200">{events.length} campus events</strong>. Review, edit, cancel, or delete events, manage societies, and oversee platform security logs below.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start md:self-center">
               <button
                 type="button"
-                onClick={() => {
-                  setEditingEvent(null)
-                  setShowCreateEventModal(true)
-                }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#6366f1] px-4 py-2.5 text-xs md:text-sm font-semibold text-white shadow-xs transition-all hover:bg-[#4f46e5]"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Create Event</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setShowCreateClubModal(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-xs md:text-sm font-semibold text-[#6366f1] transition-all hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-slate-700"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#6366f1] px-4 py-2.5 text-xs md:text-sm font-semibold text-white shadow-xs transition-all hover:bg-[#4f46e5]"
               >
                 <Plus className="h-4 w-4" />
                 <span>Create Club</span>
@@ -570,12 +567,20 @@ function DashboardPage() {
             to="/events"
           />
           <StatCard
-            label="University Analytics"
-            value="Trends"
-            icon={BarChart3}
+            label="Payments Collected"
+            value={
+              universityStats?.totalPaymentsCollected != null
+                ? `$${Number(universityStats.totalPaymentsCollected).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : 'Analytics'
+            }
+            icon={WalletCards}
             tone="emerald"
-            trend="Live metrics"
-            trendLabel="view platform trends"
+            trend={
+              universityStats?.clubPayments?.length
+                ? `${universityStats.clubPayments.length} societies`
+                : 'Per club'
+            }
+            trendLabel="separate breakdown"
             to="/analytics"
           />
         </div>
@@ -679,9 +684,10 @@ function DashboardPage() {
                   </div>
                   <Link
                     to="/advisor/pending-events"
-                    className="text-xs font-semibold text-purple-600 hover:text-purple-700 hover:underline dark:text-purple-400"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-xs font-semibold text-purple-700 shadow-xs hover:bg-purple-50 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
                   >
-                    View All ({pendingEvents.length})
+                    <History className="h-3.5 w-3.5" />
+                    Approvals & History {pendingEvents.length > 0 && `(${pendingEvents.length})`}
                   </Link>
                 </div>
 
@@ -778,6 +784,13 @@ function DashboardPage() {
                     <p className="mt-0.5 max-w-sm text-[11px] text-slate-500 dark:text-slate-400">
                       There are no student club events currently pending your sign-off.
                     </p>
+                    <Link
+                      to="/advisor/pending-events"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-xs font-semibold text-purple-700 shadow-xs hover:bg-purple-50 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      View Approval History
+                    </Link>
                   </div>
                 )}
               </section>
@@ -1021,21 +1034,10 @@ function DashboardPage() {
                     </div>
                     <div>
                       <h2 className="text-base font-bold text-slate-900 dark:text-white">Campus Events Management</h2>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Create, edit, cancel, and delete events across all societies</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Review, edit, cancel, and delete events across all societies</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingEvent(null)
-                        setShowCreateEventModal(true)
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#6366f1] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#4f46e5]"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>New Event</span>
-                    </button>
                     <Link
                       to="/events"
                       className="text-xs font-semibold text-[#6366f1] hover:underline dark:text-indigo-400"
@@ -1133,7 +1135,7 @@ function DashboardPage() {
                   </div>
                 ) : (
                   <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                    No campus events created yet. Click "New Event" to schedule the first one.
+                    No campus events created yet.
                   </div>
                 )}
               </section>
@@ -1754,6 +1756,45 @@ function DashboardPage() {
                     </span>
                     <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                   </Link>
+                </div>
+              </div>
+
+              {/* Payments Collected by Society Widget */}
+              <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800/80 dark:bg-[#181b24]">
+                <div className="flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    <WalletCards className="h-4 w-4" />
+                    Society Payments Collected
+                  </h3>
+                  <Link
+                    to="/analytics"
+                    className="text-[11px] font-semibold text-purple-600 hover:underline dark:text-purple-400"
+                  >
+                    View All
+                  </Link>
+                </div>
+                <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                  {universityStats?.clubPayments && universityStats.clubPayments.length > 0 ? (
+                    universityStats.clubPayments.slice(0, 5).map((stat) => (
+                      <div key={stat.clubId} className="flex items-center justify-between py-2.5">
+                        <div className="min-w-0 pr-2">
+                          <p className="truncate font-medium text-slate-800 dark:text-slate-200" title={stat.clubName}>
+                            {stat.clubName}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            {stat.clubCategory || 'Society'} • {stat.transactionCount || 0} txn{(stat.transactionCount || 0) === 1 ? '' : 's'}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                            ${Number(stat.totalCollected || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="py-3 text-center text-[11px] text-slate-400">No society payment records recorded yet.</p>
+                  )}
                 </div>
               </div>
             </>

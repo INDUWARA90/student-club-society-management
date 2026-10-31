@@ -1,6 +1,7 @@
 package com.club.backend.controller;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -60,6 +62,14 @@ public class ClubController {
     public ResponseEntity<ClubResponse> updateClub(@PathVariable UUID clubId, @RequestBody CreateClubRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(clubService.updateClub(clubId, request, principal));
+    }
+
+    @PatchMapping("/{clubId}/budget-visibility")
+    public ResponseEntity<ClubResponse> setBudgetVisibility(@PathVariable UUID clubId,
+            @RequestBody Map<String, Boolean> body,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Boolean show = body != null && Boolean.TRUE.equals(body.get("showBudgetToMembers"));
+        return ResponseEntity.ok(clubService.setBudgetVisibility(clubId, show, principal));
     }
 
     @DeleteMapping("/{clubId}")

@@ -3,6 +3,7 @@ package com.club.backend.service;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -41,6 +42,11 @@ public class ClubService {
     private static final BigDecimal MAX_MEMBERSHIP_FEE = new BigDecimal("100000");
     private static final int DEFAULT_CERTIFICATE_THRESHOLD = 3;
     private static final int MAX_CERTIFICATE_THRESHOLD = 100;
+    private static final Set<MembershipPosition> OFFICER_POSITIONS = Set.of(
+            MembershipPosition.PRESIDENT,
+            MembershipPosition.VP,
+            MembershipPosition.SECRETARY,
+            MembershipPosition.TREASURER);
 
     private final ClubRepository clubRepository;
     private final MembershipRepository membershipRepository;
@@ -116,8 +122,8 @@ public class ClubService {
         boolean isStaff = "SUPER_ADMIN".equals(principal.getRole()) || "FACULTY_ADVISOR".equals(principal.getRole());
         Membership membership = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId).orElse(null);
         if (!isStaff) {
-            if (membership == null || membership.getStatus() != MembershipStatus.APPROVED || membership.getPosition() != MembershipPosition.PRESIDENT) {
-                throw ApiException.forbidden("Only the Club Admin can edit the club");
+            if (membership == null || membership.getStatus() != MembershipStatus.APPROVED || !OFFICER_POSITIONS.contains(membership.getPosition())) {
+                throw ApiException.forbidden("Only club leadership can edit the club");
             }
         }
 
@@ -147,6 +153,13 @@ public class ClubService {
         if (request.logoB64() != null) {
             club.setLogoB64(request.logoB64());
         }
+        if (request.showBudgetToMembers() != null && request.showBudgetToMembers() != club.isShowBudgetToMembers()) {
+            boolean isPresidentOrSuperAdmin = "SUPER_ADMIN".equals(principal.getRole())
+                    || (membership != null && membership.getStatus() == MembershipStatus.APPROVED && membership.getPosition() == MembershipPosition.PRESIDENT);
+            if (isPresidentOrSuperAdmin) {
+                club.setShowBudgetToMembers(request.showBudgetToMembers());
+            }
+        }
         if (identityChanged) {
             club.setStatus(ClubStatus.PENDING);
         }
@@ -163,6 +176,26 @@ public class ClubService {
         }
 
         return ClubResponse.from(savedClub);
+    }
+
+    public ClubResponse setBudgetVisibility(UUID clubId, boolean show, UserPrincipal principal) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> ApiException.notFound("Club not found"));
+
+        if ("FACULTY_ADVISOR".equals(principal.getRole())) {
+            throw ApiException.forbidden("Faculty Advisors have view-only access to the club budget and cannot toggle member visibility");
+        }
+
+        boolean isSuperAdmin = "SUPER_ADMIN".equals(principal.getRole());
+        Membership membership = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId).orElse(null);
+        if (!isSuperAdmin) {
+            if (membership == null || membership.getStatus() != MembershipStatus.APPROVED
+                    || membership.getPosition() != MembershipPosition.PRESIDENT) {
+                throw ApiException.forbidden("Only the club president can toggle budget visibility for members");
+            }
+        }
+        club.setShowBudgetToMembers(show);
+        return ClubResponse.from(clubRepository.save(club));
     }
 
     public ClubResponse approveClub(UUID clubId, boolean approve, UserPrincipal principal) {

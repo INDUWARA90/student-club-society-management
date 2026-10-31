@@ -117,11 +117,6 @@ function ClubCard({ club, user, membership, onMembershipChange, showStatus = fal
             {club.status}
           </span>
         )}
-        {club.archived && (
-          <span className="absolute right-3.5 top-3.5 rounded-full bg-slate-800/90 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs">
-            Archived
-          </span>
-        )}
       </div>
 
       {/* Card Body */}

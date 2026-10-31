@@ -73,6 +73,12 @@ public class Club {
     @Builder.Default
     private boolean archived = false;
 
+    /** When true, approved club members (students) can view the budget section and ledger. Default is false (officers only). */
+    @Column(name = "show_budget_to_members", nullable = false)
+    @ColumnDefault("false")
+    @Builder.Default
+    private boolean showBudgetToMembers = false;
+
     @Lob
     @Column(name = "logo_b64", length = Length.LONG32)
     private String logoB64;

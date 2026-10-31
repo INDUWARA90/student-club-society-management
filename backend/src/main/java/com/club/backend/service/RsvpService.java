@@ -15,6 +15,7 @@ import com.club.backend.config.ApiException;
 import com.club.backend.dto.RsvpResponse;
 import com.club.backend.entity.Event;
 import com.club.backend.entity.PaymentType;
+import com.club.backend.entity.Role;
 import com.club.backend.entity.Rsvp;
 import com.club.backend.entity.RsvpStatus;
 import com.club.backend.entity.User;
@@ -48,6 +49,12 @@ public class RsvpService {
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> ApiException.notFound("User not found"));
         emailVerificationPolicy.requireVerified(user);
+
+        if (user.getRole() == Role.SUPER_ADMIN || user.getRole() == Role.FACULTY_ADVISOR) {
+            throw ApiException.forbidden(user.getRole() == Role.FACULTY_ADVISOR
+                    ? "Faculty Advisors have view-only access to events and cannot join or RSVP"
+                    : "Super Admins have administrative view-only access to events and cannot join or RSVP");
+        }
 
         if (event.getFee() != null && event.getFee().signum() > 0
                 && !paymentService.hasLivePayment(user.getId(), PaymentType.EVENT, eventId)) {

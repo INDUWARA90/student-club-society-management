@@ -78,13 +78,16 @@ function EventsPage() {
     api.get('/clubs').then((r) => setClubsList(Array.isArray(r.data) ? r.data : [])).catch(() => {})
   }, [dispatch])
 
-  // Clubs user manages (President / Officer) or can create events for
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const isFacultyAdvisor = user?.role === 'FACULTY_ADVISOR'
+  const isStaff = isSuperAdmin || isFacultyAdvisor
+
+  // Clubs user manages as President (only the Club President can create events)
   const managedClubs = useMemo(() => {
-    const officerPositions = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
-    return userMemberships.filter((m) => m.status === 'APPROVED' && officerPositions.includes(m.position))
+    return userMemberships.filter((m) => m.status === 'APPROVED' && m.position === 'PRESIDENT')
   }, [userMemberships])
 
-  const canCreateEvent = managedClubs.length > 0 || user?.role === 'SUPER_ADMIN'
+  const canCreateEvent = managedClubs.length > 0 && !isSuperAdmin && !isFacultyAdvisor
 
   // Dynamic categories from real clubs and events
   const categoryOptions = useMemo(() => {
@@ -102,6 +105,10 @@ function EventsPage() {
   // Real RSVP interaction
   async function handleRsvpToggle(e, event) {
     e.stopPropagation()
+    if (isStaff) {
+      navigate(`/events/${event.id}`)
+      return
+    }
     const isGoing = userRsvps.some((r) => r.eventId === event.id && r.status === 'GOING')
     try {
       if (isGoing) {
@@ -276,7 +283,7 @@ function EventsPage() {
               { id: 'all', label: 'All' },
               { id: 'upcoming', label: 'Upcoming' },
               { id: 'past', label: 'Past' },
-              { id: 'my-rsvps', label: 'My RSVPs' },
+              ...(!isStaff ? [{ id: 'my-rsvps', label: 'My RSVPs' }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -363,6 +370,8 @@ function EventsPage() {
                 event={event}
                 isGoing={isGoing}
                 onRsvpToggle={handleRsvpToggle}
+                isFacultyAdvisor={isFacultyAdvisor}
+                isSuperAdmin={isSuperAdmin}
               />
             )
           })}

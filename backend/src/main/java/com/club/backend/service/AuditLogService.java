@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.club.backend.dto.AuditLogResponse;
 import com.club.backend.entity.AuditLog;
@@ -16,10 +17,12 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
 
+    @Transactional
     public void log(User actor, String action, String targetType, UUID targetId, String details) {
         AuditLog entry = AuditLog.builder()
                 .actor(actor)

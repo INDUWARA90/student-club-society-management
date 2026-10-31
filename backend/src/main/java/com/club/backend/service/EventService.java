@@ -7,11 +7,16 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.time.temporal.ChronoUnit;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
 
@@ -26,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.club.backend.config.ApiException;
 import com.club.backend.dto.CreateEventRequest;
+import com.club.backend.dto.EventConflictResponse;
 import com.club.backend.dto.EventResponse;
 import com.club.backend.entity.Club;
 import com.club.backend.entity.Event;
@@ -60,6 +66,9 @@ public class EventService {
     private static final BigDecimal MAX_FEE = new BigDecimal("1000000");
 
     private static final Set<MembershipPosition> EVENT_CREATOR_POSITIONS = Set.of(
+            MembershipPosition.PRESIDENT);
+
+    private static final Set<MembershipPosition> OFFICER_POSITIONS = Set.of(
             MembershipPosition.PRESIDENT, MembershipPosition.VP,
             MembershipPosition.SECRETARY, MembershipPosition.TREASURER);
 
@@ -71,6 +80,7 @@ public class EventService {
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
     private final VenueRepository venueRepository;
+    private final VenueService venueService;
     private final RsvpRepository rsvpRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
@@ -94,7 +104,11 @@ public class EventService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> ApiException.notFound("Club not found"));
 
-        requireOfficer(clubId, principal, "Only club officers can create events");
+        if ("SUPER_ADMIN".equals(principal.getRole()) || "FACULTY_ADVISOR".equals(principal.getRole())) {
+            throw ApiException.forbidden("Only the Club President can create events");
+        }
+
+        requirePresident(clubId, principal, "Only the Club President can create events");
 
         if (!EventRules.isClubActive(club)) {
             throw ApiException.badRequest("Events can only be created for an active, approved club");
@@ -105,7 +119,8 @@ public class EventService {
 
         InputLimits.requireImageSize(request.bannerB64(), "event banner");
         BigDecimal fee = validatedFee(request.fee());
-        boolean requiresFaApproval = fee.compareTo(FA_APPROVAL_FEE_THRESHOLD) > 0;
+        // All club events submitted by the President require Faculty Advisor review and sign-off before publishing
+        boolean requiresFaApproval = true;
         Venue venue = resolveVenueBooking(request, new UUID(0, 0));
         Integer capacity = reconcileCapacity(venue, request.capacity());
 
@@ -122,42 +137,145 @@ public class EventService {
                 .capacity(capacity)
                 .budget(validatedBudget(request.budget()))
                 .requiresFaApproval(requiresFaApproval)
-                .approvalStatus(requiresFaApproval ? EventApprovalStatus.PENDING : EventApprovalStatus.NOT_REQUIRED)
+                .approvalStatus(requiresFaApproval ? EventApprovalStatus.PENDING : EventApprovalStatus.APPROVED)
                 .build();
         event = eventRepository.save(event);
 
         if (requiresFaApproval) {
-            notifyFacultyAdvisors(event);
+            notifyFacultyAdvisors(event, false);
         }
 
         return EventResponse.from(event);
     }
 
     /**
-     * Validates and resolves the optional venue booking on a create/update request, throwing a 409 if it
-     * overlaps an existing booking at the same venue. Returns null when no venue was requested.
+     * Validates and resolves the optional venue booking or custom location on a create/update request, throwing a 409 if it
+     * overlaps an existing booking at the same venue or location. Returns null when no formal venue was requested.
      */
     private Venue resolveVenueBooking(CreateEventRequest request, UUID excludeEventId) {
-        if (request.venueId() == null) {
-            return null;
-        }
-        if (request.endDate() == null || !request.endDate().isAfter(request.eventDate())) {
-            throw ApiException.badRequest("A venue booking needs an end time after the start time");
+        Instant start = request.eventDate();
+        Instant end = request.endDate() != null ? request.endDate() : (start != null ? start.plus(2, ChronoUnit.HOURS) : null);
+        UUID safeExcludeId = excludeEventId != null ? excludeEventId : new UUID(0, 0);
+
+        if (request.venueId() != null) {
+            if (request.endDate() == null || !request.endDate().isAfter(request.eventDate())) {
+                throw ApiException.badRequest("A venue booking needs an end time after the start time");
+            }
+
+            Venue venue = venueRepository.findById(request.venueId())
+                    .filter(Venue::isActive)
+                    .orElseThrow(() -> ApiException.notFound("Venue not found"));
+
+            List<Event> conflicts = eventRepository.findConflictingBookings(
+                    venue.getId(), request.eventDate(), request.endDate(), safeExcludeId);
+            if (!conflicts.isEmpty()) {
+                Event conflict = conflicts.get(0);
+                String clubName = conflict.getClub() != null ? " (" + conflict.getClub().getName() + ")" : "";
+                throw ApiException.conflict(
+                        "\"" + venue.getName() + "\" is already booked for \"" + conflict.getTitle() + "\"" + clubName + " at that time");
+            }
+
+            return venue;
         }
 
-        Venue venue = venueRepository.findById(request.venueId())
-                .filter(Venue::isActive)
-                .orElseThrow(() -> ApiException.notFound("Venue not found"));
-
-        List<Event> conflicts = eventRepository.findConflictingBookings(
-                venue.getId(), request.eventDate(), request.endDate(), excludeEventId);
-        if (!conflicts.isEmpty()) {
-            Event conflict = conflicts.get(0);
-            throw ApiException.conflict(
-                    "\"" + venue.getName() + "\" is already booked for \"" + conflict.getTitle() + "\" at that time");
+        // Also check custom location for overlapping schedule collision
+        if (request.location() != null && !request.location().trim().isEmpty() && start != null && end != null) {
+            List<Event> locConflicts = eventRepository.findConflictingLocationBookings(
+                    request.location().trim(), start, end, safeExcludeId);
+            if (!locConflicts.isEmpty()) {
+                Event conflict = locConflicts.get(0);
+                String clubName = conflict.getClub() != null ? " (" + conflict.getClub().getName() + ")" : "";
+                throw ApiException.conflict(
+                        "Location \"" + request.location().trim() + "\" is already booked for \"" + conflict.getTitle() + "\"" + clubName + " at that time");
+            }
         }
 
-        return venue;
+        return null;
+    }
+
+    /**
+     * Inspects potential same-time same-place scheduling conflicts across formal campus venues
+     * and custom locations. If a collision is detected, computes the next available slot and
+     * discovers available alternative campus venues for instant 1-click resolution.
+     */
+    public EventConflictResponse checkConflict(UUID venueId, String location, Instant eventDate, Instant endDate, UUID excludeEventId) {
+        if (eventDate == null) {
+            return EventConflictResponse.noConflict();
+        }
+
+        Instant effectiveEnd = (endDate != null && endDate.isAfter(eventDate))
+                ? endDate
+                : eventDate.plus(2, ChronoUnit.HOURS);
+        UUID safeExclude = excludeEventId != null ? excludeEventId : new UUID(0, 0);
+
+        if (venueId != null) {
+            Venue venue = venueRepository.findById(venueId).filter(Venue::isActive).orElse(null);
+            if (venue != null) {
+                List<Event> conflicts = eventRepository.findConflictingBookings(
+                        venueId, eventDate, effectiveEnd, safeExclude);
+                if (!conflicts.isEmpty()) {
+                    Event conflict = conflicts.get(0);
+                    String clubName = conflict.getClub() != null ? conflict.getClub().getName() : "another society";
+
+                    long duration = Math.max(1800, ChronoUnit.SECONDS.between(eventDate, effectiveEnd));
+                    var nextSlot = venueService.findNextAvailableSlot(venueId, eventDate, duration);
+
+                    // Find other active campus venues that are free during this exact desired time
+                    List<EventConflictResponse.AlternativeVenueDto> altVenues = venueRepository.findByActiveTrue().stream()
+                            .filter(v -> !v.getId().equals(venueId))
+                            .filter(v -> eventRepository.findConflictingBookings(v.getId(), eventDate, effectiveEnd, safeExclude).isEmpty())
+                            .map(v -> new EventConflictResponse.AlternativeVenueDto(v.getId(), v.getName(), v.getBuilding(), v.getCapacity()))
+                            .toList();
+
+                    String msg = "\"" + venue.getName() + "\" is already booked for \"" + conflict.getTitle() + "\" (" + clubName + ") at that time.";
+                    return new EventConflictResponse(
+                            true,
+                            "VENUE",
+                            conflict.getId(),
+                            conflict.getTitle(),
+                            clubName,
+                            conflict.getEventDate(),
+                            conflict.getEndDate() != null ? conflict.getEndDate() : conflict.getEventDate().plus(2, ChronoUnit.HOURS),
+                            venue.getName(),
+                            msg,
+                            nextSlot.found() ? nextSlot.start() : null,
+                            nextSlot.found() ? nextSlot.end() : null,
+                            altVenues);
+                }
+            }
+        }
+
+        if (location != null && !location.trim().isEmpty()) {
+            List<Event> locConflicts = eventRepository.findConflictingLocationBookings(
+                    location.trim(), eventDate, effectiveEnd, safeExclude);
+            if (!locConflicts.isEmpty()) {
+                Event conflict = locConflicts.get(0);
+                String clubName = conflict.getClub() != null ? conflict.getClub().getName() : "another society";
+                String msg = "Location \"" + location.trim() + "\" is already booked for \"" + conflict.getTitle() + "\" (" + clubName + ") at that time.";
+
+                // Suggest formal active venues that are free at this time
+                List<EventConflictResponse.AlternativeVenueDto> altVenues = venueRepository.findByActiveTrue().stream()
+                        .filter(v -> eventRepository.findConflictingBookings(v.getId(), eventDate, effectiveEnd, safeExclude).isEmpty())
+                        .map(v -> new EventConflictResponse.AlternativeVenueDto(v.getId(), v.getName(), v.getBuilding(), v.getCapacity()))
+                        .toList();
+
+                return new EventConflictResponse(
+                        true,
+                        "LOCATION",
+                        conflict.getId(),
+                        conflict.getTitle(),
+                        clubName,
+                        conflict.getEventDate(),
+                        conflict.getEndDate() != null ? conflict.getEndDate() : conflict.getEventDate().plus(2, ChronoUnit.HOURS),
+                        location.trim(),
+                        msg,
+                        null,
+                        null,
+                        altVenues);
+            }
+        }
+
+        return EventConflictResponse.noConflict();
     }
 
     /** A venue with a known capacity caps the event: an unlimited event inherits it, a larger one is rejected. */
@@ -208,7 +326,7 @@ public class EventService {
         Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> ApiException.notFound("Event not found"));
 
-        requireOfficer(event.getClub().getId(), principal, "Only club officers can edit events");
+        requirePresident(event.getClub().getId(), principal, "Only the Club President can edit events");
 
         if (event.isCancelled()) {
             throw ApiException.badRequest("A cancelled event can't be edited");
@@ -228,7 +346,7 @@ public class EventService {
 
         InputLimits.requireImageSize(request.bannerB64(), "event banner");
         BigDecimal fee = validatedFee(request.fee());
-        boolean requiresFaApproval = fee.compareTo(FA_APPROVAL_FEE_THRESHOLD) > 0;
+        boolean requiresFaApproval = !"SUPER_ADMIN".equals(principal.getRole());
         Venue venue = resolveVenueBooking(request, event.getId());
         Integer capacity = reconcileCapacity(venue, request.capacity());
 
@@ -242,12 +360,10 @@ public class EventService {
             }
         }
 
-        // Keep an approved event live when an edit doesn't raise the approved fee; otherwise it needs a fresh
-        // sign-off (this is also how a rejected event is resubmitted).
+        // Keep an approved event live when an edit doesn't raise the approved fee;
+        // for rejected proposals or fee increases, fresh sign-off is required upon resubmission.
         EventApprovalStatus newStatus;
-        if (!requiresFaApproval) {
-            newStatus = EventApprovalStatus.NOT_REQUIRED;
-        } else if (oldStatus == EventApprovalStatus.APPROVED && fee.compareTo(oldFee) <= 0) {
+        if (oldStatus == EventApprovalStatus.APPROVED && fee.compareTo(oldFee) <= 0) {
             newStatus = EventApprovalStatus.APPROVED;
         } else {
             newStatus = EventApprovalStatus.PENDING;
@@ -292,8 +408,8 @@ public class EventService {
             rsvpService.promoteFromWaitlist(event);
         }
 
-        if (newStatus == EventApprovalStatus.PENDING && oldStatus != EventApprovalStatus.PENDING) {
-            notifyFacultyAdvisors(event);
+        if (newStatus == EventApprovalStatus.PENDING && (oldStatus == EventApprovalStatus.REJECTED || oldStatus != EventApprovalStatus.PENDING)) {
+            notifyFacultyAdvisors(event, oldStatus == EventApprovalStatus.REJECTED);
         }
 
         return EventResponse.from(event);
@@ -304,7 +420,7 @@ public class EventService {
         Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> ApiException.notFound("Event not found"));
 
-        requireOfficer(event.getClub().getId(), principal, "Only club officers can cancel events");
+        requirePresident(event.getClub().getId(), principal, "Only the Club President can cancel events");
 
         if (event.isCancelled()) {
             throw ApiException.badRequest("This event is already cancelled");
@@ -343,7 +459,7 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> ApiException.notFound("Event not found"));
 
-        requireOfficer(event.getClub().getId(), principal, "Only club officers or administrators can delete events");
+        requirePresident(event.getClub().getId(), principal, "Only the Club President or administrators can delete events");
 
         if (!event.isCancelled()) {
             cancelInternal(event, "Event deleted by administrator");
@@ -382,10 +498,34 @@ public class EventService {
     }
 
     private void notifyFacultyAdvisors(Event event) {
+        notifyFacultyAdvisors(event, false);
+    }
+
+    private void notifyFacultyAdvisors(Event event, boolean isResubmission) {
         List<UUID> advisorIds = userRepository.findByRole(Role.FACULTY_ADVISOR).stream().map(User::getId).toList();
         if (!advisorIds.isEmpty()) {
-            notificationService.notifyUsers(advisorIds, "\"" + event.getTitle() + "\" (" + event.getClub().getName()
-                    + ", fee " + event.getFee() + ") needs your approval.");
+            String msg = isResubmission
+                    ? "Revised event proposal \"" + event.getTitle() + "\" (" + event.getClub().getName()
+                            + ") has been resubmitted for your approval."
+                    : "New event proposal \"" + event.getTitle() + "\" (" + event.getClub().getName()
+                            + ") needs your approval.";
+            notificationService.notifyUsers(advisorIds, msg);
+        }
+    }
+
+    private void requirePresident(UUID clubId, UserPrincipal principal, String message) {
+        if ("SUPER_ADMIN".equals(principal.getRole())) {
+            return;
+        }
+        if ("FACULTY_ADVISOR".equals(principal.getRole())) {
+            throw ApiException.forbidden(message);
+        }
+        Membership membership = membershipRepository.findByUserIdAndClubId(principal.getId(), clubId)
+                .orElseThrow(() -> ApiException.forbidden(message));
+
+        if (membership.getStatus() != MembershipStatus.APPROVED
+                || !EVENT_CREATOR_POSITIONS.contains(membership.getPosition())) {
+            throw ApiException.forbidden(message);
         }
     }
 
@@ -397,7 +537,7 @@ public class EventService {
                 .orElseThrow(() -> ApiException.forbidden(message));
 
         if (membership.getStatus() != MembershipStatus.APPROVED
-                || !EVENT_CREATOR_POSITIONS.contains(membership.getPosition())) {
+                || !OFFICER_POSITIONS.contains(membership.getPosition())) {
             throw ApiException.forbidden(message);
         }
     }
@@ -428,6 +568,51 @@ public class EventService {
                 .stream().filter(e -> !e.isCancelled()).map(EventResponse::from).toList();
     }
 
+    public List<EventResponse> listAdvisorEventHistory(String status) {
+        return listAdvisorEventHistory(status, null);
+    }
+
+    /**
+     * Lists events reviewed or awaiting review by the Faculty Advisor, optionally filtered by status:
+     * APPROVED, REJECTED, PENDING, or all.
+     * When requested by a student, only returns events for societies where the student is an approved officer.
+     */
+    public List<EventResponse> listAdvisorEventHistory(String status, UserPrincipal principal) {
+        List<Event> all;
+        if (principal == null || "SUPER_ADMIN".equals(principal.getRole()) || "FACULTY_ADVISOR".equals(principal.getRole())) {
+            all = eventRepository.findAll();
+        } else {
+            List<Membership> officerMemberships = membershipRepository.findByUserIdAndStatus(principal.getId(), MembershipStatus.APPROVED)
+                    .stream()
+                    .filter(m -> OFFICER_POSITIONS.contains(m.getPosition()))
+                    .toList();
+            if (officerMemberships.isEmpty()) {
+                return Collections.emptyList();
+            }
+            Set<UUID> clubIds = officerMemberships.stream().map(m -> m.getClub().getId()).collect(Collectors.toSet());
+            all = eventRepository.findAll().stream().filter(e -> clubIds.contains(e.getClub().getId())).toList();
+        }
+
+        Stream<Event> stream = all.stream()
+                .filter(e -> e.isRequiresFaApproval()
+                        || e.getApprovalStatus() == EventApprovalStatus.PENDING
+                        || e.getApprovalStatus() == EventApprovalStatus.REJECTED
+                        || (e.getApprovalStatus() == EventApprovalStatus.APPROVED && e.isRequiresFaApproval()));
+
+        if ("APPROVED".equalsIgnoreCase(status)) {
+            stream = stream.filter(e -> e.getApprovalStatus() == EventApprovalStatus.APPROVED);
+        } else if ("REJECTED".equalsIgnoreCase(status)) {
+            stream = stream.filter(e -> e.getApprovalStatus() == EventApprovalStatus.REJECTED);
+        } else if ("PENDING".equalsIgnoreCase(status)) {
+            stream = stream.filter(e -> e.getApprovalStatus() == EventApprovalStatus.PENDING && !e.isCancelled());
+        }
+
+        return stream
+                .sorted(Comparator.comparing(Event::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(EventResponse::from)
+                .toList();
+    }
+
     /** Unpublished (pending/rejected) events are only visible to the club's officers and university staff. */
     public EventResponse getEvent(UUID eventId, UserPrincipal principal) {
         Event event = eventRepository.findById(eventId)
@@ -442,7 +627,7 @@ public class EventService {
                 || viewer.getRole() == Role.FACULTY_ADVISOR
                 || membershipRepository.findByUserIdAndClubId(viewer.getId(), event.getClub().getId())
                         .filter(m -> m.getStatus() == MembershipStatus.APPROVED)
-                        .map(m -> EVENT_CREATOR_POSITIONS.contains(m.getPosition()))
+                        .map(m -> OFFICER_POSITIONS.contains(m.getPosition()))
                         .orElse(false));
         if (!allowed) {
             throw ApiException.notFound("Event not found");
@@ -539,6 +724,32 @@ public class EventService {
             throw ApiException.badRequest("This event has been cancelled");
         }
 
+        if (approve) {
+            Instant start = event.getEventDate();
+            Instant end = event.getEndDate() != null ? event.getEndDate() : (start != null ? start.plus(2, ChronoUnit.HOURS) : null);
+            if (event.getVenue() != null && start != null && end != null) {
+                List<Event> conflicts = eventRepository.findApprovedConflictingBookings(
+                        event.getVenue().getId(), start, end, event.getId());
+                if (!conflicts.isEmpty()) {
+                    Event c = conflicts.get(0);
+                    String clubName = c.getClub() != null ? " (" + c.getClub().getName() + ")" : "";
+                    throw ApiException.conflict("Cannot approve event: \"" + event.getVenue().getName()
+                            + "\" is already approved for \"" + c.getTitle() + "\"" + clubName
+                            + " at that time. Please reject with feedback to reschedule.");
+                }
+            } else if (event.getLocation() != null && !event.getLocation().trim().isEmpty() && start != null && end != null) {
+                List<Event> locConflicts = eventRepository.findApprovedConflictingLocationBookings(
+                        event.getLocation().trim(), start, end, event.getId());
+                if (!locConflicts.isEmpty()) {
+                    Event c = locConflicts.get(0);
+                    String clubName = c.getClub() != null ? " (" + c.getClub().getName() + ")" : "";
+                    throw ApiException.conflict("Cannot approve event: Location \"" + event.getLocation().trim()
+                            + "\" is already approved for \"" + c.getTitle() + "\"" + clubName
+                            + " at that time. Please reject with feedback to reschedule.");
+                }
+            }
+        }
+
         String cleanReason = reason == null || reason.isBlank() ? null : reason.trim();
         if (cleanReason != null && cleanReason.length() > 500) {
             cleanReason = cleanReason.substring(0, 500);
@@ -560,5 +771,34 @@ public class EventService {
                         : "Your event \"" + eventTitle + "\" was rejected by the Faculty Advisor." + why));
 
         return EventResponse.from(event);
+    }
+
+    public EventResponse resubmitEvent(UUID eventId, UserPrincipal principal) {
+        Event event = eventRepository.findByIdForUpdate(eventId)
+                .orElseThrow(() -> ApiException.notFound("Event not found"));
+
+        requirePresident(event.getClub().getId(), principal, "Only the Club President can resubmit events");
+
+        if (event.isCancelled()) {
+            throw ApiException.badRequest("A cancelled event cannot be resubmitted");
+        }
+        if (event.getApprovalStatus() == EventApprovalStatus.APPROVED) {
+            throw ApiException.badRequest("This event is already approved and live");
+        }
+        if (event.getEventDate() != null && !event.getEventDate().isAfter(Instant.now())) {
+            throw ApiException.badRequest("Event date has already passed. Please update the event date before resubmitting.");
+        }
+
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+        event.setRejectionReason(null);
+        event.setRequiresFaApproval(true);
+        Event saved = eventRepository.save(event);
+
+        userRepository.findById(principal.getId()).ifPresent(actor ->
+                auditLogService.log(actor, "RESUBMIT_EVENT", "EVENT", saved.getId(), saved.getTitle()));
+
+        notifyFacultyAdvisors(saved, true);
+
+        return EventResponse.from(saved);
     }
 }

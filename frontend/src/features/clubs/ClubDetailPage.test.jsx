@@ -115,9 +115,9 @@ describe('ClubDetailPage', () => {
     // Verify Super Admin cannot join or see Join Club button
     expect(screen.queryByRole('button', { name: /join club/i })).not.toBeInTheDocument()
 
-    // Verify Super Admin does not have budget tab or fetch expense ledger
-    expect(screen.queryByRole('tab', { name: /^budget/i })).not.toBeInTheDocument()
-    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/expenses/ledger'))
+    // Verify Super Admin has budget tab and fetches expense ledger
+    expect(await screen.findByRole('tab', { name: /^budget/i })).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/expenses/ledger'))
   })
 
   it('allows Super Admin to see remove button for President and call delete membership', async () => {
@@ -243,5 +243,192 @@ describe('ClubDetailPage', () => {
     )
     expect(api.put).toHaveBeenCalledWith('/memberships/mem-user-2/position', { position: 'PRESIDENT' })
     confirmSpy.mockRestore()
+  })
+
+  it('does not display Archive Society feature in admin options', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    const api = (await import('../../api/axios')).default
+    const presidentMember = {
+      id: 'mem-pres-1',
+      userId: 'user-pres-1',
+      userName: 'Alice President',
+      userEmail: 'alice@example.com',
+      position: 'PRESIDENT',
+      status: 'APPROVED',
+      joinedAt: '2026-01-01T00:00:00Z',
+    }
+
+    api.get.mockImplementation((url) => {
+      if (url === '/clubs/club-pres-1') return Promise.resolve({ data: sampleClub })
+      if (url === '/clubs/club-pres-1/members') return Promise.resolve({ data: [presidentMember] })
+      if (url === '/clubs/club-pres-1/announcements') return Promise.resolve({ data: [] })
+      if (url === '/events') return Promise.resolve({ data: [] })
+      if (url === '/analytics/clubs/club-pres-1') return Promise.resolve({ data: null })
+      if (url === '/clubs/club-pres-1/members/pending') return Promise.resolve({ data: [] })
+      return Promise.resolve({ data: [] })
+    })
+
+    const presUser = {
+      id: 'user-pres-1',
+      name: 'Alice President',
+      email: 'alice@example.com',
+      role: 'STUDENT',
+    }
+
+    renderDetailPage('club-pres-1', presUser)
+
+    expect(await screen.findByRole('heading', { name: 'Robotics & AI Society' })).toBeInTheDocument()
+
+    // Open Admin Menu dropdown
+    const adminMenuBtn = screen.getByRole('button', { name: /manage/i })
+    fireEvent.click(adminMenuBtn)
+
+    // Archive Society should not exist in the admin menu
+    expect(screen.queryByText(/archive society/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/reactivate society/i)).not.toBeInTheDocument()
+  })
+
+  it('synchronizes the Budget tab with the full Budget & Finance dashboard and dashboard link', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    const api = (await import('../../api/axios')).default
+    api.get.mockImplementation((url) => {
+      if (url === '/clubs/club-sa-1') return Promise.resolve({ data: sampleClub })
+      if (url === '/clubs/club-sa-1/members') return Promise.resolve({ data: [] })
+      if (url === '/clubs/club-sa-1/announcements') return Promise.resolve({ data: [] })
+      if (url === '/events') return Promise.resolve({ data: [] })
+      if (url === '/analytics/clubs/club-sa-1') return Promise.resolve({ data: null })
+      if (url.includes('/expenses/ledger')) {
+        return Promise.resolve({
+          data: {
+            totalIncome: 8000,
+            totalExpenses: 4200,
+            balance: 3800,
+            expenses: [
+              {
+                id: 'e1',
+                description: '3D Printer Filament',
+                amount: 350,
+                type: 'EXPENSE',
+                category: 'Equipment',
+                expenseDate: '2026-10-15',
+                loggedByName: 'Alice President',
+              },
+            ],
+            eventBudgets: [],
+          },
+        })
+      }
+      return Promise.resolve({ data: [] })
+    })
+
+    const adminUser = {
+      id: 'admin-1',
+      name: 'Super Admin',
+      email: 'admin@university.edu',
+      role: 'SUPER_ADMIN',
+    }
+
+    renderDetailPage('club-sa-1', adminUser)
+
+    expect(await screen.findByRole('heading', { name: 'Robotics & AI Society' })).toBeInTheDocument()
+
+    // Click Budget tab
+    const budgetTab = screen.getByRole('tab', { name: /^budget/i })
+    fireEvent.click(budgetTab)
+
+    // Verify it renders the synchronized Budget & Finance dashboard
+    expect(await screen.findByText(/total allocated budget/i)).toBeInTheDocument()
+    expect(await screen.findByText(/expense history & incomes/i)).toBeInTheDocument()
+    expect(await screen.findByText(/3d printer filament/i)).toBeInTheDocument()
+
+    // Verify link to open the full dashboard is present
+    const openFullLink = screen.getByRole('link', { name: /open full dashboard/i })
+    expect(openFullLink).toBeInTheDocument()
+    expect(openFullLink).toHaveAttribute('href', '/clubs/club-sa-1/budget')
+  })
+
+  it('does not display Budget tab for normal students without a club position', async () => {
+    const api = (await import('../../api/axios')).default
+    api.get.mockImplementation((url) => {
+      if (url === '/clubs/club-s-1') return Promise.resolve({ data: sampleClub })
+      if (url === '/clubs/club-s-1/members') return Promise.resolve({ data: [] })
+      if (url === '/clubs/club-s-1/announcements') return Promise.resolve({ data: [] })
+      if (url === '/events') return Promise.resolve({ data: [] })
+      if (url === '/analytics/clubs/club-s-1') return Promise.resolve({ data: null })
+      if (url === '/memberships/me') return Promise.resolve({ data: [] })
+      return Promise.resolve({ data: [] })
+    })
+
+    const studentUser = {
+      id: 'student-1',
+      name: 'Normal Student',
+      email: 'student@university.edu',
+      role: 'STUDENT',
+    }
+
+    renderDetailPage('club-s-1', studentUser)
+
+    expect(await screen.findByRole('heading', { name: 'Robotics & AI Society' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /^budget/i })).not.toBeInTheDocument()
+  })
+
+  it('displays Budget tab for normal student members when showBudgetToMembers is enabled', async () => {
+    const api = (await import('../../api/axios')).default
+    const publicClub = { ...sampleClub, id: 'club-public-1', showBudgetToMembers: true }
+    api.get.mockImplementation((url) => {
+      if (url === '/clubs/club-public-1') return Promise.resolve({ data: publicClub })
+      if (url === '/clubs/club-public-1/members') {
+        return Promise.resolve({
+          data: [{ id: 'm-std-1', userId: 'student-1', user: { id: 'student-1', name: 'Normal Student' }, position: 'MEMBER', status: 'APPROVED' }],
+        })
+      }
+      if (url === '/clubs/club-public-1/announcements') return Promise.resolve({ data: [] })
+      if (url === '/events') return Promise.resolve({ data: [] })
+      if (url === '/analytics/clubs/club-public-1') return Promise.resolve({ data: null })
+      if (url === '/memberships/me') {
+        return Promise.resolve({
+          data: [{ clubId: 'club-public-1', position: 'MEMBER', status: 'APPROVED' }],
+        })
+      }
+      return Promise.resolve({ data: [] })
+    })
+
+    const studentUser = {
+      id: 'student-1',
+      name: 'Normal Student',
+      email: 'student@university.edu',
+      role: 'STUDENT',
+    }
+
+    renderDetailPage('club-public-1', studentUser)
+
+    expect(await screen.findByRole('heading', { name: 'Robotics & AI Society' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /^budget/i })).toBeInTheDocument()
+  })
+
+  it('does not render Create Event button for Super Admin in club details', async () => {
+    const api = (await import('../../api/axios')).default
+    api.get.mockImplementation((url) => {
+      if (url === '/clubs/club-sa-1') return Promise.resolve({ data: sampleClub })
+      if (url === '/clubs/club-sa-1/members') return Promise.resolve({ data: [] })
+      if (url === '/clubs/club-sa-1/announcements') return Promise.resolve({ data: [] })
+      if (url === '/events') return Promise.resolve({ data: [] })
+      if (url === '/analytics/clubs/club-sa-1') return Promise.resolve({ data: null })
+      if (url === '/clubs/club-sa-1/members/pending') return Promise.resolve({ data: [] })
+      return Promise.resolve({ data: [] })
+    })
+
+    const adminUser = {
+      id: 'admin-1',
+      name: 'Super Admin',
+      email: 'admin@university.edu',
+      role: 'SUPER_ADMIN',
+    }
+
+    renderDetailPage('club-sa-1', adminUser)
+
+    expect(await screen.findByRole('heading', { name: 'Robotics & AI Society' })).toBeInTheDocument()
+    // Super Admin should NOT see Create event button
+    expect(screen.queryByRole('button', { name: /create event/i })).not.toBeInTheDocument()
   })
 })

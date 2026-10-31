@@ -40,6 +40,7 @@ const ADMIN_LINKS = [
 const ADVISOR_LINKS = [
   { to: '/advisor/pending-events', label: 'Pending events', icon: ClipboardCheck },
   { to: '/analytics', label: 'University stats', icon: BarChart3 },
+  { to: '/admin/audit-log', label: 'Audit log', icon: ScrollText },
 ]
 
 const ROLE_LABEL = {
@@ -70,13 +71,18 @@ const ROUTE_TITLES = {
 }
 
 function SidebarLink({ to, label, icon: Icon }) {
+  const location = useLocation()
+  const isBudgetActive =
+    to.includes('/budget') &&
+    (location.pathname.endsWith('/budget') || location.pathname.includes('/budget'))
+
   return (
     <NavLink
       to={to}
       end={to === '/'}
       className={({ isActive }) =>
         `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
-          isActive
+          isActive || isBudgetActive
             ? 'bg-[#eff0fe] text-[#6366f1] font-semibold dark:bg-[#6366f1] dark:text-white shadow-xs'
             : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-white'
         }`
@@ -158,10 +164,13 @@ function AppLayout() {
   }, [])
 
   const isFacultyAdvisor = user?.role === 'FACULTY_ADVISOR'
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const managedClub = memberships.find(
     (m) => m.status === 'APPROVED' && OFFICER_POSITIONS.includes(m.position),
   )
   const isClubOfficerOrPresident = Boolean(managedClub)
+  const canAccessBudget = isSuperAdmin || isFacultyAdvisor || isClubOfficerOrPresident
+  const canAccessClubSettings = isSuperAdmin || isFacultyAdvisor || isClubOfficerOrPresident
 
   const managedPresidentClub = memberships.find(
     (m) => m.status === 'APPROVED' && m.position === 'PRESIDENT',
@@ -171,17 +180,21 @@ function AppLayout() {
   const managedLedgerClub = memberships.find(
     (m) => m.status === 'APPROVED' && ['PRESIDENT', 'TREASURER'].includes(m.position),
   )
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
-  const canAccessBudget =
-    !isFacultyAdvisor && !isSuperAdmin && Boolean(managedLedgerClub)
-
   const isStudent = user?.role === 'STUDENT'
+
+  const activeClubContextId = location.pathname.startsWith('/clubs/')
+    ? location.pathname.split('/')[2]
+    : typeof window !== 'undefined'
+    ? sessionStorage.getItem('lastViewedClubId')
+    : null
+  const budgetNavPath = activeClubContextId ? `/clubs/${activeClubContextId}/budget` : '/budget'
 
   const mainNavLinks = isFacultyAdvisor
     ? [
         { to: '/', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/advisor/clubs', label: 'Clubs', icon: Shield },
         { to: '/events', label: 'Events Calendar', icon: CalendarDays },
+        { to: budgetNavPath, label: 'Budget', icon: Wallet },
       ]
     : [
         { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -196,13 +209,17 @@ function AppLayout() {
         ...(canAccessBudget
           ? [
               {
-                to: '/budget',
+                to: budgetNavPath,
                 label: 'Budget',
                 icon: Wallet,
               },
             ]
           : []),
-        { to: '/settings', label: 'Settings', icon: Settings },
+        ...(canAccessClubSettings
+          ? [
+              { to: '/settings', label: 'Settings', icon: Settings },
+            ]
+          : []),
       ]
 
   const mobileTabs = isFacultyAdvisor
@@ -211,7 +228,7 @@ function AppLayout() {
         { to: '/advisor/clubs', label: 'Clubs', icon: Shield },
         { to: '/advisor/pending-events', label: 'Approvals', icon: ClipboardCheck },
         { to: '/events', label: 'Events', icon: CalendarDays },
-        { to: '/analytics', label: 'Stats', icon: BarChart3 },
+        { to: budgetNavPath, label: 'Budget', icon: Wallet },
       ]
     : [
         { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -226,13 +243,17 @@ function AppLayout() {
         ...(canAccessBudget
           ? [
               {
-                to: '/budget',
+                to: budgetNavPath,
                 label: 'Budget',
                 icon: Wallet,
               },
             ]
           : []),
-        { to: '/settings', label: 'Settings', icon: Settings },
+        ...(canAccessClubSettings
+          ? [
+              { to: '/settings', label: 'Settings', icon: Settings },
+            ]
+          : []),
       ]
 
   async function handleResendVerification() {
@@ -272,6 +293,7 @@ function AppLayout() {
   let currentTitle = ROUTE_TITLES[location.pathname]
   if (!currentTitle) {
     if (location.pathname.endsWith('/members')) currentTitle = 'Club Members'
+    else if (location.pathname.endsWith('/budget')) currentTitle = 'Budget & Finance'
     else if (location.pathname.startsWith('/clubs/')) currentTitle = 'Club Details'
     else if (location.pathname.startsWith('/events/')) currentTitle = 'Event Details'
     else currentTitle = 'Dashboard'
@@ -462,21 +484,28 @@ function AppLayout() {
         className="fixed inset-x-0 bottom-0 z-40 grid border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-md dark:border-slate-800 dark:bg-[#12151e]/95 lg:hidden"
         style={{ gridTemplateColumns: `repeat(${mobileTabs.length}, minmax(0, 1fr))` }}
       >
-        {mobileTabs.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to + label}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-all ${
-                isActive ? 'text-[#6366f1] dark:text-[#818cf8]' : 'text-slate-400 dark:text-slate-500'
-              }`
-            }
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </NavLink>
-        ))}
+        {mobileTabs.map(({ to, label, icon: Icon }) => {
+          const isBudgetActive =
+            to.includes('/budget') &&
+            (location.pathname.endsWith('/budget') || location.pathname.includes('/budget'))
+          return (
+            <NavLink
+              key={to + label}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                `flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-all ${
+                  isActive || isBudgetActive
+                    ? 'text-[#6366f1] dark:text-[#818cf8]'
+                    : 'text-slate-400 dark:text-slate-500'
+                }`
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          )
+        })}
       </nav>
     </div>
   )

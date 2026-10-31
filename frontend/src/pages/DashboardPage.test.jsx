@@ -216,6 +216,10 @@ describe('DashboardPage', () => {
     const deleteBtns = screen.getAllByRole('button', { name: /^delete$/i })
     expect(deleteBtns.length).toBeGreaterThanOrEqual(1)
 
+    // Super Admin should NOT see Create Event or New Event button
+    expect(screen.queryByRole('button', { name: /^create event$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^new event$/i })).not.toBeInTheDocument()
+
     // Click delete event
     await userEventSetup.click(deleteBtns[0])
     await waitFor(() => {

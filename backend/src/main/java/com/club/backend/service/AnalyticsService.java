@@ -32,7 +32,9 @@ import com.club.backend.entity.EventApprovalStatus;
 import com.club.backend.entity.EventFeedback;
 import com.club.backend.entity.MembershipPosition;
 import com.club.backend.entity.MembershipStatus;
+import com.club.backend.entity.Payment;
 import com.club.backend.entity.PaymentStatus;
+import com.club.backend.entity.PaymentType;
 import com.club.backend.entity.Role;
 import com.club.backend.entity.RsvpStatus;
 import com.club.backend.entity.User;
@@ -141,9 +143,63 @@ public class AnalyticsService {
         long pendingClubProposals = clubRepository.findByStatus(ClubStatus.PENDING).size();
         long pendingEventApprovals = eventRepository.findByApprovalStatus(EventApprovalStatus.PENDING).size();
 
+        // Per-club payment breakdown
+        List<Payment> livePayments = paymentRepository.findByStatusAndRefundedAtIsNull(PaymentStatus.SUCCESS);
+        Map<UUID, UUID> eventToClub = new HashMap<>();
+        eventRepository.findAll().forEach(e -> {
+            if (e.getClub() != null) {
+                eventToClub.put(e.getId(), e.getClub().getId());
+            }
+        });
+
+        Map<UUID, BigDecimal> membershipByClub = new HashMap<>();
+        Map<UUID, BigDecimal> eventByClub = new HashMap<>();
+        Map<UUID, Long> countByClub = new HashMap<>();
+
+        for (Payment p : livePayments) {
+            UUID targetClubId = null;
+            if (p.getType() == PaymentType.MEMBERSHIP) {
+                targetClubId = p.getReferenceId();
+                if (targetClubId != null) {
+                    membershipByClub.merge(targetClubId, p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO, BigDecimal::add);
+                }
+            } else if (p.getType() == PaymentType.EVENT) {
+                targetClubId = eventToClub.get(p.getReferenceId());
+                if (targetClubId != null) {
+                    eventByClub.merge(targetClubId, p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO, BigDecimal::add);
+                }
+            }
+            if (targetClubId != null) {
+                countByClub.merge(targetClubId, 1L, Long::sum);
+            }
+        }
+
+        List<Club> approvedClubs = clubRepository.findByStatus(ClubStatus.APPROVED).stream()
+                .filter(club -> !club.isArchived())
+                .toList();
+
+        List<UniversityStatsResponse.ClubPaymentStat> clubPayments = approvedClubs.stream()
+                .map(club -> {
+                    BigDecimal membership = membershipByClub.getOrDefault(club.getId(), BigDecimal.ZERO);
+                    BigDecimal event = eventByClub.getOrDefault(club.getId(), BigDecimal.ZERO);
+                    BigDecimal total = membership.add(event);
+                    long count = countByClub.getOrDefault(club.getId(), 0L);
+                    return new UniversityStatsResponse.ClubPaymentStat(
+                            club.getId(),
+                            club.getName(),
+                            club.getCategory(),
+                            membership,
+                            event,
+                            total,
+                            count);
+                })
+                .sorted(Comparator.comparing(UniversityStatsResponse.ClubPaymentStat::totalCollected).reversed()
+                        .thenComparing(UniversityStatsResponse.ClubPaymentStat::clubName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+
         return new UniversityStatsResponse(
                 totalClubs, totalStudents, totalEvents, totalPaymentsCollected,
-                pendingClubProposals, pendingEventApprovals);
+                pendingClubProposals, pendingEventApprovals, clubPayments);
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -196,6 +252,19 @@ public class AnalyticsService {
 
         List<ReportSection> sections = new ArrayList<>();
         sections.add(new ReportSection("Clubs", List.of("Club", "Category", "Members", "Events"), clubRows));
+
+        List<List<String>> paymentRows = new ArrayList<>();
+        stats.clubPayments().forEach(stat -> paymentRows.add(List.of(
+                stat.clubName(),
+                nullToEmpty(stat.clubCategory()),
+                String.valueOf(stat.membershipPayments()),
+                String.valueOf(stat.eventPayments()),
+                String.valueOf(stat.totalCollected()),
+                String.valueOf(stat.transactionCount()))));
+        sections.add(new ReportSection("Payments Collected by Club",
+                List.of("Club", "Category", "Membership Fees", "Event Fees", "Total Collected", "Transactions"),
+                paymentRows));
+
         return new Report("University-Wide Report", summary, sections);
     }
 

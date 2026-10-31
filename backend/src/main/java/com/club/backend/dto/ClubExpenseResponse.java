@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import com.club.backend.entity.ClubExpense;
+import com.club.backend.entity.ExpenseType;
 
 public record ClubExpenseResponse(
         UUID id,
@@ -18,7 +19,14 @@ public record ClubExpenseResponse(
         Instant createdAt,
         String category,
         UUID eventId,
-        String eventTitle) {
+        String eventTitle,
+        ExpenseType type) {
+
+    public ClubExpenseResponse(UUID id, UUID clubId, UUID loggedBy, String loggedByName, String description,
+            BigDecimal amount, LocalDate expenseDate, Instant createdAt, String category, UUID eventId,
+            String eventTitle) {
+        this(id, clubId, loggedBy, loggedByName, description, amount, expenseDate, createdAt, category, eventId, eventTitle, ExpenseType.EXPENSE);
+    }
 
     public static ClubExpenseResponse from(ClubExpense expense) {
         return new ClubExpenseResponse(
@@ -32,6 +40,7 @@ public record ClubExpenseResponse(
                 expense.getCreatedAt(),
                 expense.getCategory(),
                 expense.getEvent() != null ? expense.getEvent().getId() : null,
-                expense.getEvent() != null ? expense.getEvent().getTitle() : null);
+                expense.getEvent() != null ? expense.getEvent().getTitle() : null,
+                expense.getEntryType() != null ? expense.getEntryType() : ExpenseType.EXPENSE);
     }
 }

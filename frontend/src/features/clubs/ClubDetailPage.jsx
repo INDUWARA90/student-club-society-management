@@ -1,23 +1,28 @@
 import {
   AlertTriangle,
-  Archive,
   Calendar,
   CalendarDays,
   Check,
   ChevronDown,
+  Clock,
   Download,
+  Edit3,
   ExternalLink,
   MapPin,
   Pencil,
   Plus,
+  RefreshCw,
   Settings,
   Shield,
+  ShieldAlert,
+  ShieldCheck,
   SlidersHorizontal,
   Trash2,
   UserMinus,
   UserPlus,
   Users,
   Wallet,
+  XCircle,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -31,6 +36,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import AdvisorRequestModal from '../advisor/AdvisorRequestModal'
+import BudgetFinancePage from '../budget/BudgetFinancePage'
 import CreateEventModal from '../events/CreateEventModal'
 import EventCard from '../events/EventCard'
 import { joinClub } from './clubsSlice'
@@ -160,6 +166,9 @@ function ClubDetailPage() {
   const [announcements, setAnnouncements] = useState([])
   const [pendingRequests, setPendingRequests] = useState([])
   const [events, setEvents] = useState([])
+  const [clubProposals, setClubProposals] = useState([])
+  const [editingProposal, setEditingProposal] = useState(null)
+  const [resubmittingProposalId, setResubmittingProposalId] = useState(null)
   const [stats, setStats] = useState(null)
   const [ledger, setLedger] = useState(null)
   const [reports, setReports] = useState([])
@@ -205,7 +214,8 @@ function ClubDetailPage() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const isFacultyAdvisor = user?.role === 'FACULTY_ADVISOR'
   const canDeleteClub = isSuperAdmin
-  const isPresident = myMembership?.position === 'PRESIDENT' || isSuperAdmin
+  const isClubPresident = myMembership?.position === 'PRESIDENT'
+  const isPresident = isClubPresident || isSuperAdmin
   const isOfficer = OFFICER_POSITIONS.includes(myMembership?.position) || isSuperAdmin
   const canManageLedger =
     !isSuperAdmin && !isFacultyAdvisor && LEDGER_POSITIONS.includes(myMembership?.position)
@@ -243,6 +253,55 @@ function ClubDetailPage() {
       ? null
       : joinStatus || (myMembership ? 'APPROVED' : (myPendingStatus || pendingRequests.some((p) => p.userId === user?.id)) ? 'PENDING' : null)
 
+  const isMember = Boolean(myMembership || effectiveMembershipStatus === 'APPROVED')
+
+  // Club officers, advisors, and admins track event proposals (pending review & rejected)
+  useEffect(() => {
+    if (!clubId) return
+    if (isOfficer || isFacultyAdvisor || isSuperAdmin) {
+      api
+        .get('/events/advisor-history')
+        .then((res) => {
+          const list = Array.isArray(res.data) ? res.data : []
+          setClubProposals(
+            list.filter(
+              (e) =>
+                e.clubId === clubId &&
+                (e.approvalStatus === 'PENDING' || e.approvalStatus === 'REJECTED'),
+            ),
+          )
+        })
+        .catch(() => {})
+    } else {
+      setClubProposals([])
+    }
+  }, [clubId, isOfficer, isFacultyAdvisor, isSuperAdmin])
+
+  async function handleResubmitProposal(proposalId) {
+    setResubmittingProposalId(proposalId)
+    try {
+      await api.post(`/events/${proposalId}/resubmit`)
+      showToast('Event proposal resubmitted to Faculty Advisor for review! 🎉')
+      api
+        .get('/events/advisor-history')
+        .then((res) => {
+          const list = Array.isArray(res.data) ? res.data : []
+          setClubProposals(
+            list.filter(
+              (e) =>
+                e.clubId === clubId &&
+                (e.approvalStatus === 'PENDING' || e.approvalStatus === 'REJECTED'),
+            ),
+          )
+        })
+        .catch(() => {})
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Failed to resubmit event', 'error')
+    } finally {
+      setResubmittingProposalId(null)
+    }
+  }
+
   async function handleAdvisorReviewEvent(e, eventId, approve) {
     let reason
     if (!approve) {
@@ -253,15 +312,30 @@ function ClubDetailPage() {
       await api.post(`/events/${eventId}/${approve ? 'approve' : 'reject'}`, approve ? undefined : { reason })
       showToast(approve ? 'Event proposal approved 🎉' : 'Event proposal rejected')
       api.get('/events', { params: { clubId } }).then((res) => setEvents(res.data)).catch(() => {})
+      if (isOfficer || isFacultyAdvisor || isSuperAdmin) {
+        api.get('/events/advisor-history').then((res) => {
+          const list = Array.isArray(res.data) ? res.data : []
+          setClubProposals(
+            list.filter(
+              (ev) =>
+                ev.clubId === clubId &&
+                (ev.approvalStatus === 'PENDING' || ev.approvalStatus === 'REJECTED'),
+            ),
+          )
+        }).catch(() => {})
+      }
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to review event', 'error')
     }
   }
 
   useEffect(() => {
-    if (!canManageLedger) return
+    if (!clubId) return
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('lastViewedClubId', clubId)
+    }
     api.get(`/clubs/${clubId}/expenses/ledger`).then((res) => setLedger(res.data)).catch(() => {})
-  }, [clubId, canManageLedger])
+  }, [clubId])
 
   useEffect(() => {
     if (!isPresident) return
@@ -324,17 +398,6 @@ function ClubDetailPage() {
       const res = await api.get(`/clubs/${clubId}/members`)
       setMembers(res.data)
       showToast('You left the club')
-    } catch (e) {
-      showToast(e.response?.data?.message || 'Something went wrong', 'error')
-    }
-  }
-
-  async function handleArchiveClub() {
-    if (!window.confirm('Archive this club? It is hidden from browsing, upcoming events are cancelled and members are notified.')) return
-    try {
-      const { data } = await api.post(`/clubs/${clubId}/archive`)
-      setClub(data)
-      showToast('Club archived')
     } catch (e) {
       showToast(e.response?.data?.message || 'Something went wrong', 'error')
     }
@@ -422,18 +485,71 @@ function ClubDetailPage() {
     try {
       await api.delete(`/clubs/${clubId}/expenses/${expenseId}`)
       setLedger((prev) => {
+        if (!prev) return prev
         const removed = prev.expenses.find((e) => e.id === expenseId)
+        if (!removed) return prev
+        const isIncome = removed.type === 'INCOME'
+        const amt = Number(removed.amount) || 0
         return {
           ...prev,
-          totalExpenses: (Number(prev.totalExpenses) - Number(removed.amount)).toString(),
-          balance: (Number(prev.balance) + Number(removed.amount)).toString(),
+          totalIncome: isIncome ? (Number(prev.totalIncome) - amt).toString() : prev.totalIncome,
+          totalExpenses: !isIncome ? (Number(prev.totalExpenses) - amt).toString() : prev.totalExpenses,
+          balance: isIncome ? (Number(prev.balance) - amt).toString() : (Number(prev.balance) + amt).toString(),
           expenses: prev.expenses.filter((e) => e.id !== expenseId),
         }
       })
-      showToast('Expense deleted')
+      showToast('Transaction deleted')
     } catch (e) {
       showToast(e.response?.data?.message || 'Something went wrong', 'error')
     }
+  }
+
+  async function handleExportCsv() {
+    if (!isPresident) {
+      showToast('Only the Club President can export CSV files', 'error')
+      return
+    }
+    if (!clubId) return
+    try {
+      const res = await api.get(`/clubs/${clubId}/expenses/csv`)
+      if (typeof res.data === 'string' && res.data.length > 0) {
+        const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.setAttribute('download', `club_ledger_${clubId}.csv`)
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        showToast('Ledger CSV exported')
+        return
+      }
+    } catch {
+      // client-side fallback
+    }
+
+    if (!ledger?.expenses?.length) {
+      showToast('No ledger transactions to export', 'info')
+      return
+    }
+    const header = 'Transaction ID,Type,Date,Description,Category,Event,Amount,Logged By\n'
+    const rows = ledger.expenses
+      .map(
+        (e) =>
+          `"${e.id || ''}","${e.type || 'EXPENSE'}","${e.expenseDate || ''}","${(e.description || '').replace(/"/g, '""')}","${e.category || 'General'}","${(e.eventTitle || '').replace(/"/g, '""')}",${e.amount || 0},"${(e.loggedByName || user?.name || 'Officer').replace(/"/g, '""')}"`,
+      )
+      .join('\n')
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `club_ledger_${clubId}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    showToast('Ledger CSV exported')
   }
 
   async function handleImportMembers(e) {
@@ -563,15 +679,18 @@ function ClubDetailPage() {
   // Dynamic next meeting / event schedule from real events
   const nextEvent = futureEvents[0]
 
-  const canViewMembers = isOfficer || isSuperAdmin || isFacultyAdvisor
-  const activeTab = (tab === 'budget' && !canManageLedger) || (tab === 'members' && !canViewMembers) ? 'about' : tab
+  const canViewMembers = true
+  const activeTab = tab
+  const canViewBudget = Boolean(
+    isOfficer || isPresident || isSuperAdmin || isFacultyAdvisor || (club?.showBudgetToMembers && isMember)
+  )
 
   const tabs = [
     { id: 'about', label: 'About' },
     { id: 'events', label: `Events (${events.length})` },
-    ...(canViewMembers ? [{ id: 'members', label: `Members (${members.length})` }] : []),
+    { id: 'members', label: `Members (${members.length})` },
     { id: 'gallery', label: 'Gallery' },
-    ...(canManageLedger && ledger ? [{ id: 'budget', label: 'Budget' }] : []),
+    ...(canViewBudget ? [{ id: 'budget', label: 'Budget' }] : []),
   ]
 
   if (!club) {
@@ -694,7 +813,7 @@ function ClubDetailPage() {
               >
                 Requested
               </button>
-            ) : canJoinClub && !club.archived ? (
+            ) : canJoinClub ? (
               <button
                 type="button"
                 onClick={handleJoin}
@@ -785,7 +904,7 @@ function ClubDetailPage() {
                       )}
 
                       {/* Club Settings */}
-                      {isPresident && (
+                      {(isPresident || isOfficer) && (
                         <Link
                           to={`/clubs/${clubId}/settings`}
                           onClick={() => setShowAdminMenu(false)}
@@ -827,7 +946,7 @@ function ClubDetailPage() {
                       )}
 
                       {/* Create Event */}
-                      {(isOfficer || isSuperAdmin) && !club.archived && (
+                      {isClubPresident && (
                         <button
                           type="button"
                           onClick={() => {
@@ -850,8 +969,8 @@ function ClubDetailPage() {
                         </button>
                       )}
 
-                      {/* Log Expense */}
-                      {canManageLedger && (
+                      {/* Log Expense (Club President only; Super Admin cannot record expenses) */}
+                      {isClubPresident && (
                         <button
                           type="button"
                           onClick={() => {
@@ -897,30 +1016,6 @@ function ClubDetailPage() {
                           </div>
                         </button>
                       )}
-
-                      {/* Archive / Unarchive Club */}
-                      {isPresident && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowAdminMenu(false)
-                            handleArchiveClub()
-                          }}
-                          className="flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-all hover:bg-amber-50 dark:hover:bg-amber-950/30 group"
-                        >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 group-hover:scale-105 transition-transform">
-                            <Archive className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                              {club.archived ? 'Reactivate Society' : 'Archive Society'}
-                            </p>
-                            <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 truncate">
-                              {club.archived ? 'Allow new events and members' : 'Freeze registrations and scheduling'}
-                            </p>
-                          </div>
-                        </button>
-                      )}
                     </div>
 
                     {/* Danger Zone: Delete Club */}
@@ -955,12 +1050,6 @@ function ClubDetailPage() {
           </div>
         </div>
       </div>
-
-      {club.archived && (
-        <p className="rounded-xl bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 dark:bg-red-950/30 dark:text-red-400">
-          This club is archived — it no longer accepts new members or event scheduling.
-        </p>
-      )}
 
       {/* Tabs Navigation Bar */}
       <div role="tablist" className="flex gap-2 overflow-x-auto border-b border-slate-200/80 dark:border-slate-800/80">
@@ -1252,16 +1341,143 @@ function ClubDetailPage() {
 
       {/* TAB 2: EVENTS */}
       {activeTab === 'events' && (
-        <section className="mt-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Club Events ({events.length})</h2>
-            {isOfficer && (
+        <section className="mt-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Club Events ({events.length})</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Official published events approved by the Faculty Advisor and open for student RSVP.
+              </p>
+            </div>
+            {isClubPresident && (
               <Button size="sm" onClick={() => setShowCreateEvent(true)}>
                 <Plus className="h-3.5 w-3.5" />
                 Create event
               </Button>
             )}
           </div>
+
+          {/* Officer Proposal Oversight Panel (Visible to President/Officers/Advisor) */}
+          {(isPresident || isOfficer || isFacultyAdvisor || isSuperAdmin) && clubProposals.length > 0 && (
+            <div className="rounded-2xl border border-amber-200/90 bg-amber-50/40 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+              <div className="flex items-center justify-between pb-3 border-b border-amber-200/60 dark:border-amber-900/40">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                    Event Proposals & Approvals (Officer Oversight)
+                  </h3>
+                </div>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                  {clubProposals.length} proposal{clubProposals.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="mt-3 space-y-3">
+                {clubProposals.map((proposal) => {
+                  const isProposalPending = proposal.approvalStatus === 'PENDING'
+                  const isProposalRejected = proposal.approvalStatus === 'REJECTED'
+
+                  return (
+                    <div
+                      key={proposal.id}
+                      className={`rounded-xl border p-3.5 transition-all ${
+                        isProposalPending
+                          ? 'border-amber-200 bg-white/90 dark:border-amber-900/50 dark:bg-[#181b24]'
+                          : 'border-rose-200 bg-white/90 dark:border-rose-900/50 dark:bg-[#181b24]'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            to={`/events/${proposal.id}`}
+                            className="font-bold text-xs text-ink hover:text-brand-500 dark:text-ink-dark"
+                          >
+                            {proposal.title}
+                          </Link>
+                          {isProposalPending && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                              <Clock className="h-3 w-3" />
+                              Pending Advisor Sign-off
+                            </span>
+                          )}
+                          {isProposalRejected && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-300">
+                              <XCircle className="h-3 w-3" />
+                              Proposal Rejected
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Action buttons for rejected or pending */}
+                        <div className="flex items-center gap-2">
+                          {isProposalRejected && isPresident && (
+                            <>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setEditingProposal(proposal)}
+                              >
+                                <Edit3 className="h-3 w-3" />
+                                Fix & Resubmit
+                              </Button>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                disabled={resubmittingProposalId === proposal.id}
+                                onClick={() => handleResubmitProposal(proposal.id)}
+                              >
+                                <RefreshCw className={`h-3 w-3 ${resubmittingProposalId === proposal.id ? 'animate-spin' : ''}`} />
+                                {resubmittingProposalId === proposal.id ? 'Resending...' : 'Resend'}
+                              </Button>
+                            </>
+                          )}
+                          {isProposalPending && (isFacultyAdvisor || isSuperAdmin) && (
+                            <>
+                              <Button
+                                variant="success"
+                                size="sm"
+                                onClick={(e) => handleAdvisorReviewEvent(e, proposal.id, true)}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={(e) => handleAdvisorReviewEvent(e, proposal.id, false)}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          <Link
+                            to={`/events/${proposal.id}`}
+                            className="text-xs font-semibold text-purple-600 hover:underline dark:text-purple-400"
+                          >
+                            View Details
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Advisor Feedback if rejected */}
+                      {isProposalRejected && (
+                        <div className="mt-2.5 rounded-lg border border-rose-200/80 bg-rose-50/70 p-2.5 text-xs text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+                          <p className="font-semibold text-rose-900 dark:text-rose-200">Advisor Feedback & Reason:</p>
+                          <p className="mt-0.5">{proposal.rejectionReason || 'No specific feedback provided.'}</p>
+                        </div>
+                      )}
+
+                      {isProposalPending && (
+                        <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-400">
+                          Submitted for Faculty Advisor review. Once approved, it will automatically appear below for campus students.
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {events.length === 0 && (
             <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">No events found for this club.</p>
           )}
@@ -1295,13 +1511,13 @@ function ClubDetailPage() {
               <Button as={Link} to={`/clubs/${clubId}/members`} variant="secondary" size="sm">
                 View directory
               </Button>
-              {canManageRecords && (
+              {isPresident && (
                 <label className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-[#181b24] dark:text-slate-300">
                   Import CSV
                   <input type="file" accept=".csv,text/csv" onChange={handleImportMembers} className="hidden" />
                 </label>
               )}
-              {canManageRecords && (
+              {isPresident && (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1315,7 +1531,7 @@ function ClubDetailPage() {
           </div>
 
           {/* Pending Requests */}
-          {pendingRequests.length > 0 && isOfficer && (
+          {pendingRequests.length > 0 && isPresident && (
             <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
               <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
                 Pending Join Requests ({pendingRequests.length})
@@ -1402,100 +1618,21 @@ function ClubDetailPage() {
         </section>
       )}
 
-      {/* TAB 5: BUDGET */}
-      {activeTab === 'budget' && canManageLedger && ledger && (
+      {/* TAB 5: SYNCHRONIZED BUDGET & FINANCE */}
+      {activeTab === 'budget' && canViewBudget && (
         <section className="mt-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Budget Ledger</h2>
-            <Button size="sm" onClick={() => setShowLogExpense(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Log expense
-            </Button>
+          <BudgetFinancePage embeddedClubId={clubId} />
+        </section>
+      )}
+      {activeTab === 'budget' && !canViewBudget && (
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 mb-3 shadow-2xs">
+            <ShieldAlert className="h-6 w-6" />
           </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="space-y-6 lg:col-span-2">
-              <div className="grid grid-cols-3 gap-3">
-                <Card interactive={false}>
-                  <p className="text-xs text-slate-400">Total income</p>
-                  <p className="mt-1 text-xl font-bold text-emerald-600">${ledger.totalIncome}</p>
-                </Card>
-                <Card interactive={false}>
-                  <p className="text-xs text-slate-400">Total expenses</p>
-                  <p className="mt-1 text-xl font-bold text-red-600">${ledger.totalExpenses}</p>
-                </Card>
-                <Card interactive={false}>
-                  <p className="text-xs text-slate-400">Balance</p>
-                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">${ledger.balance}</p>
-                </Card>
-              </div>
-
-              {ledger.expenses.length > 0 && spendingChartData && (
-                <ChartCard
-                  title="Spending by month"
-                  subtitle="Logged expenses, past 6 months"
-                  table={{
-                    columns: ['Month', 'Spent'],
-                    rows: spendingByMonth.map((m) => [m.fullLabel, `$${m.value.toLocaleString()}`]),
-                  }}
-                >
-                  <BarChartJS
-                    data={spendingChartData}
-                    height={220}
-                    ariaLabel="Spending by month bar chart"
-                  />
-                </ChartCard>
-              )}
-
-              <SectionCard title="Expenses">
-                {ledger.expenses.length === 0 && (
-                  <p className="text-xs text-slate-400">No expenses logged yet.</p>
-                )}
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {ledger.expenses.map((e) => (
-                    <div key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{e.description}</p>
-                        <p className="text-xs text-slate-400">
-                          {e.expenseDate} — logged by {e.loggedByName}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-red-600">-${e.amount}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteExpense(e.id)}
-                          className="text-xs text-red-500 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </SectionCard>
-            </div>
-
-            <SectionCard title="Spending" className="flex flex-col items-center self-start">
-              <Donut value={totalExpenses} total={totalIncome} />
-              <dl className="mt-4 w-full space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <dt className="flex items-center gap-2 text-slate-500">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#6366f1]" />
-                    Spent
-                  </dt>
-                  <dd className="font-medium text-slate-900 dark:text-white">${ledger.totalExpenses}</dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="flex items-center gap-2 text-slate-500">
-                    <span className="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-700" />
-                    Remaining
-                  </dt>
-                  <dd className="font-medium text-slate-900 dark:text-white">${ledger.balance}</dd>
-                </div>
-              </dl>
-            </SectionCard>
-          </div>
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">Budget Section Restricted</h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            The Budget &amp; Finance section is currently private to club leadership. The Club President can enable member visibility in Club Settings.
+          </p>
         </section>
       )}
 
@@ -1504,7 +1641,30 @@ function ClubDetailPage() {
         <CreateEventModal
           clubId={clubId}
           onClose={() => setShowCreateEvent(false)}
-          onCreated={(created) => setEvents((prev) => [...prev, created])}
+          onCreated={(created) => {
+            if (created.approvalStatus === 'APPROVED' || created.approvalStatus === 'NOT_REQUIRED') {
+              setEvents((prev) => [...prev, created])
+            } else {
+              setClubProposals((prev) => [created, ...prev])
+            }
+          }}
+        />
+      )}
+
+      {editingProposal && (
+        <CreateEventModal
+          clubId={clubId}
+          event={editingProposal}
+          onClose={() => setEditingProposal(null)}
+          onCreated={(updated) => {
+            setEditingProposal(null)
+            if (updated.approvalStatus === 'APPROVED' || updated.approvalStatus === 'NOT_REQUIRED') {
+              setEvents((prev) => [updated, ...prev.filter((e) => e.id !== updated.id)])
+              setClubProposals((prev) => prev.filter((e) => e.id !== updated.id))
+            } else {
+              setClubProposals((prev) => [updated, ...prev.filter((e) => e.id !== updated.id)])
+            }
+          }}
         />
       )}
 
@@ -1512,13 +1672,19 @@ function ClubDetailPage() {
         <LogExpenseModal
           clubId={clubId}
           onClose={() => setShowLogExpense(false)}
-          onLogged={(expense) =>
-            setLedger((prev) => ({
-              ...prev,
-              totalExpenses: (Number(prev.totalExpenses) + Number(expense.amount)).toString(),
-              balance: (Number(prev.balance) - Number(expense.amount)).toString(),
-              expenses: [expense, ...prev.expenses],
-            }))
+          onLogged={(tx) =>
+            setLedger((prev) => {
+              if (!prev) return prev
+              const isIncome = tx.type === 'INCOME'
+              const amt = Number(tx.amount) || 0
+              return {
+                ...prev,
+                totalIncome: isIncome ? (Number(prev.totalIncome) + amt).toString() : prev.totalIncome,
+                totalExpenses: !isIncome ? (Number(prev.totalExpenses) + amt).toString() : prev.totalExpenses,
+                balance: isIncome ? (Number(prev.balance) + amt).toString() : (Number(prev.balance) - amt).toString(),
+                expenses: [tx, ...(prev.expenses || [])],
+              }
+            })
           }
         />
       )}

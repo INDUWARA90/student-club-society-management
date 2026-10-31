@@ -63,9 +63,8 @@ export default function AllClubsOverviewPage() {
       }
 
       // Status filter
-      if (selectedStatus !== 'ALL') {
-        if (selectedStatus === 'ARCHIVED' && !club.archived) return false
-        if (selectedStatus !== 'ARCHIVED' && club.status !== selectedStatus) return false
+      if (selectedStatus !== 'ALL' && club.status !== selectedStatus) {
+        return false
       }
 
       return true
@@ -247,7 +246,6 @@ export default function AllClubsOverviewPage() {
               { id: 'ALL', label: 'All Statuses' },
               { id: 'APPROVED', label: 'Approved' },
               { id: 'PENDING', label: 'Pending' },
-              { id: 'ARCHIVED', label: 'Archived' },
             ].map((st) => (
               <button
                 key={st.id}

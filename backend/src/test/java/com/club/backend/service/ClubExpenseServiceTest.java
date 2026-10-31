@@ -90,17 +90,45 @@ class ClubExpenseServiceTest {
         assertThatThrownBy(() -> expenseService.logExpense(club.getId(),
                 new CreateExpenseRequest("Snacks", BigDecimal.TEN), principal))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("Treasurer or Club Admin");
+                .hasMessageContaining("Club President");
     }
 
     @Test
-    void logExpense_treasurer_succeeds() {
+    void logExpense_treasurer_throws() {
         Membership treasurerMembership = Membership.builder().position(MembershipPosition.TREASURER)
                 .status(MembershipStatus.APPROVED).build();
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
         when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
         when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
                 .thenReturn(Optional.of(treasurerMembership));
+
+        assertThatThrownBy(() -> expenseService.logExpense(club.getId(),
+                new CreateExpenseRequest("Snacks", BigDecimal.TEN), principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Club President");
+    }
+
+    @Test
+    void logExpense_superAdmin_throws() {
+        User superAdmin = User.builder().id(UUID.randomUUID()).name("Admin").email("admin@example.com").role(Role.SUPER_ADMIN).build();
+        UserPrincipal adminPrincipal = new UserPrincipal(superAdmin);
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(userRepository.findById(superAdmin.getId())).thenReturn(Optional.of(superAdmin));
+
+        assertThatThrownBy(() -> expenseService.logExpense(club.getId(),
+                new CreateExpenseRequest("Snacks", BigDecimal.TEN), adminPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Super Admins cannot record club expenses");
+    }
+
+    @Test
+    void logExpense_president_succeeds() {
+        Membership presidentMembership = Membership.builder().position(MembershipPosition.PRESIDENT)
+                .status(MembershipStatus.APPROVED).build();
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
+        when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
+                .thenReturn(Optional.of(presidentMembership));
         when(expenseRepository.save(any(ClubExpense.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ClubExpenseResponse response = expenseService.logExpense(club.getId(),
@@ -148,41 +176,75 @@ class ClubExpenseServiceTest {
     }
 
     @Test
-    void getLedger_regularMember_throwsForbidden() {
-        Membership memberMembership = Membership.builder().position(MembershipPosition.MEMBER)
-                .status(MembershipStatus.APPROVED).build();
+    void getLedger_regularMember_throws() {
         when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
         when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
-                .thenReturn(Optional.of(memberMembership));
+                .thenReturn(Optional.of(Membership.builder().position(MembershipPosition.MEMBER)
+                        .status(MembershipStatus.APPROVED).build()));
 
         assertThatThrownBy(() -> expenseService.getLedger(club.getId(), principal))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("club officers");
+                .hasMessageContaining("Only club position members can view the club budget and ledger");
     }
 
     @Test
-    void getLedger_outsider_throwsForbidden() {
+    void getLedger_regularMember_withShowBudgetToMembersEnabled_allowed() {
         when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
-        when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId())).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> expenseService.getLedger(club.getId(), principal))
-                .isInstanceOf(ApiException.class)
-                .hasMessageContaining("club officers");
-    }
-
-    @Test
-    void getLedger_vpOfficer_allowed() {
-        Membership vpMembership = Membership.builder().position(MembershipPosition.VP)
-                .status(MembershipStatus.APPROVED).build();
-        when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
+        club.setShowBudgetToMembers(true);
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
         when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
-                .thenReturn(Optional.of(vpMembership));
+                .thenReturn(Optional.of(Membership.builder().position(MembershipPosition.MEMBER)
+                        .status(MembershipStatus.APPROVED).build()));
         when(expenseRepository.findByClubIdOrderByExpenseDateDesc(club.getId())).thenReturn(List.of());
         when(eventRepository.findByClubId(club.getId())).thenReturn(List.of());
         when(paymentRepository.findByTypeAndReferenceIdAndStatusAndRefundedAtIsNull(PaymentType.MEMBERSHIP, club.getId(), PaymentStatus.SUCCESS))
                 .thenReturn(List.of());
 
         ClubLedgerResponse ledger = expenseService.getLedger(club.getId(), principal);
+        assertThat(ledger.balance()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void getLedger_outsider_throws() {
+        when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> expenseService.getLedger(club.getId(), principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Only club position members can view the club budget and ledger");
+    }
+
+    @Test
+    void getLedger_vpOfficer_allowed() {
+        when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
+                .thenReturn(Optional.of(Membership.builder().position(MembershipPosition.VP)
+                        .status(MembershipStatus.APPROVED).build()));
+        when(expenseRepository.findByClubIdOrderByExpenseDateDesc(club.getId())).thenReturn(List.of());
+        when(eventRepository.findByClubId(club.getId())).thenReturn(List.of());
+        when(paymentRepository.findByTypeAndReferenceIdAndStatusAndRefundedAtIsNull(PaymentType.MEMBERSHIP, club.getId(), PaymentStatus.SUCCESS))
+                .thenReturn(List.of());
+
+        ClubLedgerResponse ledger = expenseService.getLedger(club.getId(), principal);
+
+        assertThat(ledger.balance()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void getLedger_facultyAdvisor_allowedWithoutMembership() {
+        User advisor = User.builder().id(UUID.randomUUID()).name("Advisor").email("advisor@example.com").role(Role.FACULTY_ADVISOR).build();
+        UserPrincipal advisorPrincipal = new UserPrincipal(advisor);
+        when(userRepository.findById(advisor.getId())).thenReturn(Optional.of(advisor));
+        when(expenseRepository.findByClubIdOrderByExpenseDateDesc(club.getId())).thenReturn(List.of());
+        when(eventRepository.findByClubId(club.getId())).thenReturn(List.of());
+        when(paymentRepository.findByTypeAndReferenceIdAndStatusAndRefundedAtIsNull(PaymentType.MEMBERSHIP, club.getId(), PaymentStatus.SUCCESS))
+                .thenReturn(List.of());
+
+        ClubLedgerResponse ledger = expenseService.getLedger(club.getId(), advisorPrincipal);
 
         assertThat(ledger.balance()).isEqualByComparingTo(BigDecimal.ZERO);
     }
@@ -206,7 +268,7 @@ class ClubExpenseServiceTest {
     private void asTreasurer() {
         when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
         when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
-                .thenReturn(Optional.of(Membership.builder().position(MembershipPosition.TREASURER)
+                .thenReturn(Optional.of(Membership.builder().position(MembershipPosition.PRESIDENT)
                         .status(MembershipStatus.APPROVED).build()));
     }
 
@@ -283,7 +345,7 @@ class ClubExpenseServiceTest {
         assertThatThrownBy(() -> expenseService.updateExpense(club.getId(), expense.getId(),
                 new CreateExpenseRequest("New", BigDecimal.ONE), principal))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("Treasurer or Club Admin");
+                .hasMessageContaining("Club President");
     }
 
     @Test
@@ -372,5 +434,125 @@ class ClubExpenseServiceTest {
         assertThat(other.budget()).isNull();
         assertThat(other.remaining()).isNull();
         assertThat(other.spent()).isEqualByComparingTo("60");
+    }
+
+    @Test
+    void logIncome_president_succeeds() {
+        asTreasurer();
+        when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(expenseRepository.save(any(ClubExpense.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClubExpenseResponse response = expenseService.logExpense(club.getId(),
+                new CreateExpenseRequest("Sponsorship Grant", new BigDecimal("500"), "Sponsorship", null, null,
+                        com.club.backend.entity.ExpenseType.INCOME), principal);
+
+        assertThat(response.amount()).isEqualByComparingTo("500");
+        assertThat(response.type()).isEqualTo(com.club.backend.entity.ExpenseType.INCOME);
+        org.mockito.Mockito.verify(auditLogService).log(org.mockito.ArgumentMatchers.eq(treasurer),
+                org.mockito.ArgumentMatchers.eq("LOG_INCOME"), org.mockito.ArgumentMatchers.eq("EXPENSE"),
+                any(), any(String.class));
+    }
+
+    @Test
+    void computeLedger_withManualIncomeAndEventIncome_computesBalance() {
+        ClubExpense expense = ClubExpense.builder().club(club).loggedBy(treasurer).description("Food")
+                .amount(new BigDecimal("150")).entryType(com.club.backend.entity.ExpenseType.EXPENSE).build();
+        ClubExpense income = ClubExpense.builder().club(club).loggedBy(treasurer).description("Sponsor")
+                .amount(new BigDecimal("400")).entryType(com.club.backend.entity.ExpenseType.INCOME).build();
+        when(expenseRepository.findByClubIdOrderByExpenseDateDesc(club.getId())).thenReturn(List.of(expense, income));
+        when(eventRepository.findByClubId(club.getId())).thenReturn(List.of());
+        when(paymentRepository.findByTypeAndReferenceIdAndStatusAndRefundedAtIsNull(PaymentType.MEMBERSHIP, club.getId(), PaymentStatus.SUCCESS))
+                .thenReturn(List.of(com.club.backend.entity.Payment.builder().amount(new BigDecimal("50")).build()));
+
+        ClubLedgerResponse ledger = expenseService.computeLedger(club.getId());
+
+        // Total income = 50 (membership) + 400 (manual income) = 450
+        // Total expenses = 150
+        // Balance = 450 - 150 = 300
+        assertThat(ledger.totalIncome()).isEqualByComparingTo(new BigDecimal("450"));
+        assertThat(ledger.totalExpenses()).isEqualByComparingTo(new BigDecimal("150"));
+        assertThat(ledger.balance()).isEqualByComparingTo(new BigDecimal("300"));
+    }
+
+    @Test
+    void computeLedger_withCompletedEvent_tracksRemainingBudgetAndNet() {
+        java.time.Instant pastDate = java.time.Instant.now().minusSeconds(86400 * 5);
+        com.club.backend.entity.Event hackathon = com.club.backend.entity.Event.builder()
+                .id(UUID.randomUUID()).club(club).title("Hackathon 2026")
+                .eventDate(pastDate).budget(new BigDecimal("1000")).build();
+
+        ClubExpense food = ClubExpense.builder().club(club).loggedBy(treasurer).description("Dinner")
+                .amount(new BigDecimal("600")).entryType(com.club.backend.entity.ExpenseType.EXPENSE)
+                .event(hackathon).build();
+        ClubExpense prizeDonation = ClubExpense.builder().club(club).loggedBy(treasurer).description("Prize Grant")
+                .amount(new BigDecimal("250")).entryType(com.club.backend.entity.ExpenseType.INCOME)
+                .event(hackathon).build();
+
+        when(expenseRepository.findByClubIdOrderByExpenseDateDesc(club.getId())).thenReturn(List.of(food, prizeDonation));
+        when(eventRepository.findByClubId(club.getId())).thenReturn(List.of(hackathon));
+        when(paymentRepository.findByTypeAndReferenceIdInAndStatusAndRefundedAtIsNull(
+                org.mockito.ArgumentMatchers.eq(PaymentType.EVENT), any(), org.mockito.ArgumentMatchers.eq(PaymentStatus.SUCCESS)))
+                .thenReturn(List.of(com.club.backend.entity.Payment.builder().referenceId(hackathon.getId()).amount(new BigDecimal("100")).build()));
+        when(paymentRepository.findByTypeAndReferenceIdAndStatusAndRefundedAtIsNull(PaymentType.MEMBERSHIP, club.getId(), PaymentStatus.SUCCESS))
+                .thenReturn(List.of());
+
+        ClubLedgerResponse ledger = expenseService.computeLedger(club.getId());
+
+        assertThat(ledger.eventBudgets()).hasSize(1);
+        ClubLedgerResponse.EventBudgetLine line = ledger.eventBudgets().get(0);
+        assertThat(line.title()).isEqualTo("Hackathon 2026");
+        assertThat(line.budget()).isEqualByComparingTo("1000");
+        assertThat(line.spent()).isEqualByComparingTo("600");
+        // income = 100 (tickets) + 250 (prize donation) = 350
+        assertThat(line.income()).isEqualByComparingTo("350");
+        // remaining unspent budget = 1000 - 600 = 400
+        assertThat(line.remaining()).isEqualByComparingTo("400");
+        // net = 350 - 600 = -250
+        assertThat(line.net()).isEqualByComparingTo("-250");
+        // event date was 5 days ago, so it is completed
+        assertThat(line.completed()).isTrue();
+    }
+
+    @Test
+    void exportLedgerCsv_returnsFormattedCsv() {
+        when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
+        Membership presidentMembership = Membership.builder().position(MembershipPosition.PRESIDENT)
+                .status(MembershipStatus.APPROVED).build();
+        when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
+                .thenReturn(Optional.of(presidentMembership));
+
+        com.club.backend.entity.Event hackathon = com.club.backend.entity.Event.builder()
+                .id(UUID.randomUUID()).club(club).title("Hackathon").build();
+
+        ClubExpense income = ClubExpense.builder().id(UUID.randomUUID()).club(club).loggedBy(treasurer)
+                .description("Sponsorship").amount(new BigDecimal("500.00")).category("Sponsorship")
+                .event(hackathon).expenseDate(java.time.LocalDate.of(2026, 10, 15))
+                .entryType(com.club.backend.entity.ExpenseType.INCOME).build();
+
+        ClubExpense expense = ClubExpense.builder().id(UUID.randomUUID()).club(club).loggedBy(treasurer)
+                .description("Catering").amount(new BigDecimal("150.00")).category("Food")
+                .event(hackathon).expenseDate(java.time.LocalDate.of(2026, 10, 16))
+                .entryType(com.club.backend.entity.ExpenseType.EXPENSE).build();
+
+        when(expenseRepository.findByClubIdOrderByExpenseDateDesc(club.getId())).thenReturn(List.of(expense, income));
+
+        String csv = expenseService.exportLedgerCsv(club.getId(), null, null, principal);
+
+        assertThat(csv).contains("Transaction ID,Type,Date,Description,Category,Event,Amount,Logged By");
+        assertThat(csv).contains("\"INCOME\",\"2026-10-15\",\"Sponsorship\",\"Sponsorship\",\"Hackathon\",500.00,\"Treasurer\"");
+        assertThat(csv).contains("\"EXPENSE\",\"2026-10-16\",\"Catering\",\"Food\",\"Hackathon\",150.00,\"Treasurer\"");
+    }
+
+    @Test
+    void exportLedgerCsv_regularMember_throws() {
+        when(userRepository.findById(treasurer.getId())).thenReturn(Optional.of(treasurer));
+        Membership memberMembership = Membership.builder().position(MembershipPosition.MEMBER)
+                .status(MembershipStatus.APPROVED).build();
+        when(membershipRepository.findByUserIdAndClubId(treasurer.getId(), club.getId()))
+                .thenReturn(Optional.of(memberMembership));
+
+        assertThatThrownBy(() -> expenseService.exportLedgerCsv(club.getId(), null, null, principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Only the Club President can export the ledger CSV");
     }
 }

@@ -253,7 +253,7 @@ public class MembershipService {
     }
 
     public String listMembersCsv(UUID clubId, UserPrincipal principal) {
-        requirePresidentOrSecretary(clubId, principal);
+        requirePresident(clubId, principal);
 
         List<Membership> members = membershipRepository.findByClubIdAndStatus(clubId, MembershipStatus.APPROVED);
         StringBuilder csv = new StringBuilder("Name,Email,Position,Joined At\n");

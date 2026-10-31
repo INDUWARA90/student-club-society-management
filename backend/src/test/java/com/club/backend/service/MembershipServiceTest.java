@@ -451,13 +451,23 @@ class MembershipServiceTest {
 
         assertThatThrownBy(() -> membershipService.listMembersCsv(club.getId(), new UserPrincipal(user)))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("Club Admin or Secretary");
+                .hasMessageContaining("Club Admin");
+    }
+
+    @Test
+    void listMembersCsv_secretary_throwsForbidden() {
+        Membership secMembership = memberOf(user, MembershipPosition.SECRETARY, MembershipStatus.APPROVED);
+        when(membershipRepository.findByUserIdAndClubId(user.getId(), club.getId())).thenReturn(Optional.of(secMembership));
+
+        assertThatThrownBy(() -> membershipService.listMembersCsv(club.getId(), new UserPrincipal(user)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Club Admin");
     }
 
     @Test
     void listMembersCsv_neutralisesSpreadsheetFormulas() {
-        Membership secretary = memberOf(president, MembershipPosition.SECRETARY, MembershipStatus.APPROVED);
-        when(membershipRepository.findByUserIdAndClubId(president.getId(), club.getId())).thenReturn(Optional.of(secretary));
+        Membership pres = memberOf(president, MembershipPosition.PRESIDENT, MembershipStatus.APPROVED);
+        when(membershipRepository.findByUserIdAndClubId(president.getId(), club.getId())).thenReturn(Optional.of(pres));
         User sneaky = User.builder().id(UUID.randomUUID()).name("=HYPERLINK(\"http://evil\")").email("x@example.com")
                 .role(Role.STUDENT).build();
         when(membershipRepository.findByClubIdAndStatus(club.getId(), MembershipStatus.APPROVED))

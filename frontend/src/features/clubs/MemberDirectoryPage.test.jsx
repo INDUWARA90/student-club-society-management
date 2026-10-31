@@ -33,7 +33,7 @@ function renderWithProviders(ui, { initialState } = {}) {
 }
 
 describe('MemberDirectoryPage', () => {
-  it('restricts access for normal students who are not club officers', async () => {
+  it('allows normal students to view member directory in read-only mode without management controls', async () => {
     const axios = (await import('../../api/axios')).default
     axios.get.mockImplementation((url) => {
       if (url.includes('/pending')) return Promise.resolve({ data: [] })
@@ -51,8 +51,13 @@ describe('MemberDirectoryPage', () => {
       },
     })
 
-    expect(await screen.findByText(/restricted to club officers/i)).toBeInTheDocument()
-    expect(screen.queryByText('Alice')).not.toBeInTheDocument()
+    expect(await screen.findByText(/member directory/i)).toBeInTheDocument()
+    expect(await screen.findByText('Alice')).toBeInTheDocument()
+    expect(await screen.findByText('Normal Student')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /invite members/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Read-only').length).toBeGreaterThan(0)
+    expect(axios.get).not.toHaveBeenCalledWith('/clubs/club-1/members/pending')
   })
 
   it('allows access for club president and displays member directory', async () => {
@@ -188,5 +193,29 @@ describe('MemberDirectoryPage', () => {
     const selectDropdown = dialog.querySelector('select')
     const options = Array.from(selectDropdown.querySelectorAll('option')).map((o) => o.value)
     expect(options).not.toContain('PRESIDENT')
+  })
+
+  it('hides Export Data button for normal student', async () => {
+    const axios = (await import('../../api/axios')).default
+    axios.get.mockImplementation((url) => {
+      if (url === '/clubs') {
+        return Promise.resolve({ data: [{ id: 'club-1', name: 'Tech Club' }] })
+      }
+      return Promise.resolve({
+        data: [
+          { id: 'm1', userId: 'pres-1', userName: 'President Bob', clubName: 'Tech Club', position: 'PRESIDENT', status: 'APPROVED' },
+          { id: 'm2', userId: 'student-1', userName: 'Charlie', clubName: 'Tech Club', position: 'MEMBER', status: 'APPROVED' },
+        ],
+      })
+    })
+
+    renderWithProviders(<MemberDirectoryPage />, {
+      initialState: {
+        auth: { user: { id: 'student-1', name: 'Charlie', role: 'STUDENT' } },
+      },
+    })
+
+    expect(await screen.findByText(/member directory/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /export data/i })).not.toBeInTheDocument()
   })
 })

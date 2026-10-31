@@ -40,9 +40,39 @@ public interface EventRepository extends JpaRepository<Event, UUID>, JpaSpecific
     /** Events at {@code venueId} (excluding {@code excludeEventId}) whose booking window overlaps [start, end). */
     @Query("SELECT e FROM Event e WHERE e.venue.id = :venueId AND e.id <> :excludeEventId "
             + "AND e.approvalStatus <> com.club.backend.entity.EventApprovalStatus.REJECTED AND e.cancelled = false "
-            + "AND e.eventDate < :end AND e.endDate > :start")
+            + "AND e.eventDate < :end AND COALESCE(e.endDate, e.eventDate) > :start")
     List<Event> findConflictingBookings(
             @Param("venueId") UUID venueId,
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("excludeEventId") UUID excludeEventId);
+
+    /** Only firmly APPROVED, non-cancelled events at {@code venueId} that overlap [start, end). */
+    @Query("SELECT e FROM Event e WHERE e.venue.id = :venueId AND e.id <> :excludeEventId "
+            + "AND e.approvalStatus = com.club.backend.entity.EventApprovalStatus.APPROVED AND e.cancelled = false "
+            + "AND e.eventDate < :end AND COALESCE(e.endDate, e.eventDate) > :start")
+    List<Event> findApprovedConflictingBookings(
+            @Param("venueId") UUID venueId,
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("excludeEventId") UUID excludeEventId);
+
+    /** Events with matching text location (excluding {@code excludeEventId}) whose booking window overlaps [start, end). */
+    @Query("SELECT e FROM Event e WHERE LOWER(TRIM(e.location)) = LOWER(TRIM(:location)) AND e.id <> :excludeEventId "
+            + "AND e.approvalStatus <> com.club.backend.entity.EventApprovalStatus.REJECTED AND e.cancelled = false "
+            + "AND e.eventDate < :end AND COALESCE(e.endDate, e.eventDate) > :start")
+    List<Event> findConflictingLocationBookings(
+            @Param("location") String location,
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("excludeEventId") UUID excludeEventId);
+
+    /** Only firmly APPROVED events with matching text location that overlap [start, end). */
+    @Query("SELECT e FROM Event e WHERE LOWER(TRIM(e.location)) = LOWER(TRIM(:location)) AND e.id <> :excludeEventId "
+            + "AND e.approvalStatus = com.club.backend.entity.EventApprovalStatus.APPROVED AND e.cancelled = false "
+            + "AND e.eventDate < :end AND COALESCE(e.endDate, e.eventDate) > :start")
+    List<Event> findApprovedConflictingLocationBookings(
+            @Param("location") String location,
             @Param("start") Instant start,
             @Param("end") Instant end,
             @Param("excludeEventId") UUID excludeEventId);

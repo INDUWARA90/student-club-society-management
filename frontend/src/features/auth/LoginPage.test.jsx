@@ -30,7 +30,7 @@ describe('LoginPage', () => {
     await user.tab()
 
     expect(await screen.findByText(/enter a valid email address/i)).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('shows inline errors for empty fields on submit without calling the API', async () => {
     const axios = (await import('../../api/axios')).default

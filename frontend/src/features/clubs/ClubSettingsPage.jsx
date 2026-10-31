@@ -4,6 +4,9 @@ import {
   Camera,
   Check,
   ChevronDown,
+  Eye,
+  EyeOff,
+  Info,
   Layers,
   Lock,
   MapPin,
@@ -11,6 +14,7 @@ import {
   Plus,
   Send,
   Shield,
+  ShieldAlert,
   Trash2,
   UploadCloud,
   UserCheck,
@@ -20,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
-import { useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
 import Breadcrumbs from '../../components/Breadcrumbs'
 import { useToast } from '../../components/ToastProvider'
@@ -31,6 +35,11 @@ const ALL_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER', 'MEMBER']
 
 function ClubSettingsPage() {
   const { clubId: routeClubId } = useParams()
+  const [searchParams] = useSearchParams()
+  const queryClubId = searchParams.get('clubId')
+  const lastClubId = typeof window !== 'undefined' ? sessionStorage.getItem('lastViewedClubId') : null
+  const preferredClubId = routeClubId || queryClubId || lastClubId || ''
+
   const { showToast } = useToast()
   const user = useSelector((state) => state.auth.user)
 
@@ -38,7 +47,8 @@ function ClubSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [managedClubs, setManagedClubs] = useState([])
-  const [activeClubId, setActiveClubId] = useState(routeClubId || '')
+  const [userMemberships, setUserMemberships] = useState([])
+  const [activeClubId, setActiveClubId] = useState(preferredClubId)
 
   // Form State
   const [clubName, setClubName] = useState('')
@@ -54,6 +64,7 @@ function ClubSettingsPage() {
   const [joinPolicy, setJoinPolicy] = useState('OPEN')
   const [membershipFee, setMembershipFee] = useState(0)
   const [certificateThreshold, setCertificateThreshold] = useState(3)
+  const [showBudgetToMembers, setShowBudgetToMembers] = useState(false)
 
   // Gathering Info
   const [gatheringDay, setGatheringDay] = useState('Every Wednesday')
@@ -72,31 +83,59 @@ function ClubSettingsPage() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const isFacultyAdvisor = user?.role === 'FACULTY_ADVISOR'
 
+  useEffect(() => {
+    if (activeClubId && typeof window !== 'undefined') {
+      sessionStorage.setItem('lastViewedClubId', activeClubId)
+    }
+  }, [activeClubId])
+
   // Discover user's accessible clubs
   useEffect(() => {
     async function loadInitial() {
       try {
-        if (isSuperAdmin || isFacultyAdvisor) {
-          const res = await api.get('/clubs')
-          const list = Array.isArray(res.data) ? res.data : []
-          setManagedClubs(list)
-          if (!routeClubId && list.length > 0) {
-            setActiveClubId(list[0].id)
-          }
-        } else {
+        let memList = []
+        try {
           const res = await api.get('/memberships/me')
-          const memberships = Array.isArray(res.data) ? res.data : []
-          const officerClubs = memberships.filter(
+          memList = Array.isArray(res.data) ? res.data : []
+          setUserMemberships(memList)
+        } catch {
+          // ignore
+        }
+
+        let clubList = []
+        try {
+          const res = await api.get('/clubs')
+          clubList = Array.isArray(res.data) ? res.data : []
+        } catch {
+          // ignore
+        }
+
+        let mapped = []
+        if (isSuperAdmin || isFacultyAdvisor) {
+          mapped = clubList.map((c) => {
+            const inMem = memList.find((m) => String(m.clubId).toLowerCase() === String(c.id).toLowerCase())
+            return { id: c.id, name: c.name, position: inMem?.position || 'ADVISOR' }
+          })
+        } else {
+          // Normal students do not manage club settings - only include clubs where user holds an approved officer position
+          const approvedOfficers = memList.filter(
             (m) => m.status === 'APPROVED' && OFFICER_POSITIONS.includes(m.position),
           )
-          const mapped = officerClubs.map((m) => ({ id: m.clubId, name: m.clubName, position: m.position }))
-          setManagedClubs(mapped)
-          if (!routeClubId && mapped.length > 0) {
-            setActiveClubId(mapped[0].id)
-          }
+          mapped = approvedOfficers.map((m) => ({ id: m.clubId, name: m.clubName, position: m.position }))
         }
-        if (routeClubId) {
-          setActiveClubId(routeClubId)
+
+        setManagedClubs(mapped)
+
+        // Select preferred or officer club
+        const targetId = routeClubId || queryClubId || lastClubId
+        const targetMatched =
+          targetId &&
+          mapped.some((c) => String(c.id).toLowerCase() === String(targetId).toLowerCase())
+
+        if (targetMatched) {
+          setActiveClubId(targetId)
+        } else if (mapped.length > 0) {
+          setActiveClubId(mapped[0].id)
         }
       } catch {
         // ignore
@@ -105,7 +144,7 @@ function ClubSettingsPage() {
       }
     }
     loadInitial()
-  }, [routeClubId, isSuperAdmin, isFacultyAdvisor])
+  }, [routeClubId, queryClubId, isSuperAdmin, isFacultyAdvisor, user?.id])
 
   // Load selected club details from backend
   useEffect(() => {
@@ -121,6 +160,7 @@ function ClubSettingsPage() {
           if (c.joinPolicy) setJoinPolicy(c.joinPolicy)
           if (c.membershipFee !== undefined) setMembershipFee(c.membershipFee)
           if (c.certificateThreshold !== undefined) setCertificateThreshold(c.certificateThreshold)
+          if (c.showBudgetToMembers !== undefined) setShowBudgetToMembers(Boolean(c.showBudgetToMembers))
           if (c.logoB64) setIconImage(c.logoB64)
           if (c.category) {
             setTags([c.category, 'Student Society'])
@@ -207,6 +247,7 @@ function ClubSettingsPage() {
         joinPolicy,
         membershipFee: Number(membershipFee) || 0,
         certificateThreshold: Number(certificateThreshold) || 3,
+        showBudgetToMembers: Boolean(showBudgetToMembers),
         logoB64: iconImage || null,
       })
       showToast('Club settings saved successfully')
@@ -289,24 +330,162 @@ function ClubSettingsPage() {
   }
 
   const myMembership = useMemo(() => {
-    return clubMembers.find(
+    // 1. From userMemberships loaded from /memberships/me
+    const fromUserMemberships = userMemberships.find(
       (m) =>
-        (m.userId && user?.id && String(m.userId) === String(user.id)) ||
+        String(m.clubId || m.id).toLowerCase() === String(activeClubId).toLowerCase() &&
+        m.status === 'APPROVED',
+    )
+    if (fromUserMemberships) return fromUserMemberships
+
+    // 2. From clubMembers loaded from /clubs/:clubId/members
+    const fromClubMembers = clubMembers.find(
+      (m) =>
+        (m.userId && user?.id && String(m.userId).toLowerCase() === String(user.id).toLowerCase()) ||
         (m.userEmail && user?.email && m.userEmail.toLowerCase() === user.email.toLowerCase()),
     )
-  }, [clubMembers, user])
+    if (fromClubMembers) return fromClubMembers
 
-  const isPresident =
-    isSuperAdmin ||
-    isFacultyAdvisor ||
-    myMembership?.position === 'PRESIDENT' ||
-    managedClubs.some((c) => c.id === activeClubId && c.position === 'PRESIDENT')
+    // 3. From managedClubs
+    const fromManaged = managedClubs.find(
+      (c) => String(c.id).toLowerCase() === String(activeClubId).toLowerCase(),
+    )
+    if (fromManaged) return fromManaged
+
+    return null
+  }, [userMemberships, clubMembers, managedClubs, activeClubId, user])
+
+  const isPresident = useMemo(() => {
+    if (isSuperAdmin || isFacultyAdvisor) return true
+    if (myMembership?.position === 'PRESIDENT') return true
+    if (
+      userMemberships.some(
+        (m) =>
+          String(m.clubId || m.id).toLowerCase() === String(activeClubId).toLowerCase() &&
+          m.status === 'APPROVED' &&
+          m.position === 'PRESIDENT',
+      )
+    ) {
+      return true
+    }
+    return managedClubs.some(
+      (c) =>
+        String(c.id).toLowerCase() === String(activeClubId).toLowerCase() &&
+        c.position === 'PRESIDENT',
+    )
+  }, [isSuperAdmin, isFacultyAdvisor, myMembership, userMemberships, managedClubs, activeClubId])
+
+  const isOfficer = useMemo(() => {
+    if (isSuperAdmin || isFacultyAdvisor || isPresident) return true
+    if (myMembership && OFFICER_POSITIONS.includes(myMembership.position)) return true
+    if (
+      userMemberships.some(
+        (m) =>
+          String(m.clubId || m.id).toLowerCase() === String(activeClubId).toLowerCase() &&
+          m.status === 'APPROVED' &&
+          OFFICER_POSITIONS.includes(m.position),
+      )
+    ) {
+      return true
+    }
+    return managedClubs.some(
+      (c) =>
+        String(c.id).toLowerCase() === String(activeClubId).toLowerCase() &&
+        OFFICER_POSITIONS.includes(c.position),
+    )
+  }, [isSuperAdmin, isFacultyAdvisor, isPresident, myMembership, userMemberships, managedClubs, activeClubId])
+
+  // Whether user holds a leadership / officer / president role in this club
+  const hasClubRole = isPresident || isOfficer
+
+  const officerMemberships = useMemo(() => {
+    return userMemberships.filter(
+      (m) => m.status === 'APPROVED' && OFFICER_POSITIONS.includes(m.position),
+    )
+  }, [userMemberships])
+
+  const hasAnyLeadershipRole =
+    isSuperAdmin || isFacultyAdvisor || officerMemberships.length > 0 || managedClubs.length > 0
+
+  const availableTabs = useMemo(() => {
+    return [
+      { id: 'Profile', label: 'Profile', icon: Layers },
+      { id: 'Notifications', label: 'Announcements & Alerts', icon: Megaphone },
+      { id: 'Roles & Permissions', label: 'Roles & Permissions', icon: Shield },
+      { id: 'Privacy Settings', label: 'Privacy & Access', icon: Lock },
+    ]
+  }, [])
 
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl p-6 md:p-8 space-y-6">
         <Skeleton className="h-8 w-48 rounded-xl" />
         <Skeleton className="h-64 rounded-2xl" />
+      </div>
+    )
+  }
+
+  // Normal students who do not hold any leadership positions are blocked from Club Settings
+  if (!loading && !hasAnyLeadershipRole) {
+    return (
+      <div className="mx-auto max-w-2xl p-6 py-16 md:p-12 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 mb-4 shadow-xs">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white md:text-2xl">
+          Club Leadership Only
+        </h1>
+        <p className="mt-2 text-xs md:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+          The Club Settings section is reserved for club leadership positions (President, Vice President, Secretary, Treasurer), Faculty Advisors, and Super Admins. Normal students cannot access club settings.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#6366f1] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#4f46e5]"
+          >
+            Return to Dashboard
+          </Link>
+          <Link
+            to="/clubs"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Browse Clubs
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Officer in some clubs but not in the currently active club
+  if (!loading && hasAnyLeadershipRole && !hasClubRole) {
+    return (
+      <div className="mx-auto max-w-2xl p-6 py-16 md:p-12 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 mb-4 shadow-xs">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white md:text-2xl">
+          Officer Access Restricted
+        </h1>
+        <p className="mt-2 text-xs md:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+          You do not hold an officer position in this club. You can only manage settings for societies where you hold an approved leadership position.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {officerMemberships.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveClubId(officerMemberships[0].clubId)}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#6366f1] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#4f46e5]"
+            >
+              Switch to {officerMemberships[0].clubName || 'My Club'}
+            </button>
+          )}
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Return to Dashboard
+          </Link>
+        </div>
       </div>
     )
   }
@@ -332,7 +511,9 @@ function ClubSettingsPage() {
             Club Settings
           </h1>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Configure profile parameters, assign officer roles, broadcast alerts, and access controls.
+            {hasClubRole
+              ? 'Configure profile parameters, assign officer roles, broadcast alerts, and access controls.'
+              : 'View society profile parameters and live platform preview.'}
           </p>
         </div>
 
@@ -346,7 +527,7 @@ function ClubSettingsPage() {
             >
               {managedClubs.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name} {c.position && c.position !== 'MEMBER' ? `(${c.position})` : ''}
                 </option>
               ))}
             </select>
@@ -359,12 +540,7 @@ function ClubSettingsPage() {
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Column 1: Left Navigation Tabs (3 cols) */}
         <div className="lg:col-span-3 space-y-1">
-          {[
-            { id: 'Profile', label: 'Profile', icon: Layers },
-            { id: 'Notifications', label: 'Announcements & Alerts', icon: Megaphone },
-            { id: 'Roles & Permissions', label: 'Roles & Permissions', icon: Shield },
-            { id: 'Privacy Settings', label: 'Privacy & Access', icon: Lock },
-          ].map((tab) => {
+          {availableTabs.map((tab) => {
             const isActive = activeTab === tab.id
             const Icon = tab.icon
             return (
@@ -386,7 +562,7 @@ function ClubSettingsPage() {
         </div>
 
         {/* TAB 2: ANNOUNCEMENTS & ALERTS */}
-        {activeTab === 'Notifications' && (
+        {hasClubRole && activeTab === 'Notifications' && (
           <div className="lg:col-span-9 space-y-6">
             {/* Send Announcement Card */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
@@ -492,7 +668,7 @@ function ClubSettingsPage() {
         )}
 
         {/* TAB 3: ROLES & PERMISSIONS */}
-        {activeTab === 'Roles & Permissions' && (
+        {hasClubRole && activeTab === 'Roles & Permissions' && (
           <div className="lg:col-span-9 space-y-6">
             {/* Roles Matrix Overview Card */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
@@ -706,7 +882,7 @@ function ClubSettingsPage() {
         )}
 
         {/* TAB 4: PRIVACY & ACCESS SETTINGS */}
-        {activeTab === 'Privacy Settings' && (
+        {hasClubRole && activeTab === 'Privacy Settings' && (
           <div className="lg:col-span-9 space-y-6">
             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-3 mb-5">
@@ -810,6 +986,89 @@ function ClubSettingsPage() {
                   </div>
                 </div>
 
+                {/* Section: President Budget Visibility Controls for Club Members */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Club Budget &amp; Financial Ledger Visibility
+                    </label>
+                    {isPresident ? (
+                      <span className="rounded-md bg-purple-100 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">
+                        President Authority
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                        President Only
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                    Control whether general club members (enrolled students) can view the Budget &amp; Finance tab, balance, and income/expense ledger.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label
+                      className={`flex flex-col p-4 rounded-xl border transition-all ${
+                        !isPresident && !isSuperAdmin ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'
+                      } ${
+                        !showBudgetToMembers
+                          ? 'border-[#6366f1] bg-indigo-50/40 dark:border-indigo-500 dark:bg-indigo-950/30'
+                          : 'border-slate-200 hover:bg-slate-50/50 dark:border-slate-700 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <EyeOff className="h-4 w-4 text-slate-500" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            Hidden from Members (Default)
+                          </span>
+                        </div>
+                        <input
+                          type="radio"
+                          name="showBudgetToMembers"
+                          disabled={!isPresident && !isSuperAdmin}
+                          checked={!showBudgetToMembers}
+                          onChange={() => setShowBudgetToMembers(false)}
+                          className="text-[#6366f1] focus:ring-[#6366f1]"
+                        />
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Only club leadership positions (President, VP, Secretary, Treasurer), Faculty Advisors, and Admins can view the budget section and ledger.
+                      </p>
+                    </label>
+
+                    <label
+                      className={`flex flex-col p-4 rounded-xl border transition-all ${
+                        !isPresident && !isSuperAdmin ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'
+                      } ${
+                        showBudgetToMembers
+                          ? 'border-emerald-500 bg-emerald-50/40 dark:border-emerald-500 dark:bg-emerald-950/30'
+                          : 'border-slate-200 hover:bg-slate-50/50 dark:border-slate-700 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Eye className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            Visible to Club Members
+                          </span>
+                        </div>
+                        <input
+                          type="radio"
+                          name="showBudgetToMembers"
+                          disabled={!isPresident && !isSuperAdmin}
+                          checked={showBudgetToMembers}
+                          onChange={() => setShowBudgetToMembers(true)}
+                          className="text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Enrolled student members can view the club's Budget section in read-only mode to see financial balance, allocations, and expenditures.
+                      </p>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                   <button
                     type="submit"
@@ -831,9 +1090,16 @@ function ClubSettingsPage() {
             {/* Column 2: Center Main Form: Club Profile Parameters (5.5 cols) */}
             <div className="lg:col-span-5">
               <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white mb-5">
-                  Club Profile Parameters
-                </h2>
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    Club Profile Parameters
+                  </h2>
+                  {!hasClubRole && (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                      Read-Only View
+                    </span>
+                  )}
+                </div>
 
                 <form onSubmit={handleSaveProfile} className="space-y-4">
                   {/* Row 1: Club Name & Category */}
@@ -845,9 +1111,12 @@ function ClubSettingsPage() {
                       <input
                         type="text"
                         required
+                        disabled={!hasClubRole}
                         value={clubName}
                         onChange={(e) => setClubName(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className={`w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
+                          !hasClubRole ? 'cursor-not-allowed bg-slate-50 opacity-80 dark:bg-slate-800/60' : ''
+                        }`}
                       />
                     </div>
 
@@ -858,8 +1127,11 @@ function ClubSettingsPage() {
                       <div className="relative">
                         <select
                           value={category}
+                          disabled={!hasClubRole}
                           onChange={(e) => setCategory(e.target.value)}
-                          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-3.5 py-2 pr-8 text-xs font-medium text-slate-900 outline-none focus:border-[#6366f1] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          className={`w-full appearance-none rounded-xl border border-slate-200 bg-white px-3.5 py-2 pr-8 text-xs font-medium text-slate-900 outline-none focus:border-[#6366f1] dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
+                            !hasClubRole ? 'cursor-not-allowed bg-slate-50 opacity-80 dark:bg-slate-800/60' : ''
+                          }`}
                         >
                           <option value="Arts & Culture">Arts & Culture</option>
                           <option value="Tech">Tech</option>
@@ -868,7 +1140,9 @@ function ClubSettingsPage() {
                           <option value="Sports">Sports</option>
                           <option value="Special Interest">Special Interest</option>
                         </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        {hasClubRole && (
+                          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -880,33 +1154,38 @@ function ClubSettingsPage() {
                     </label>
                     <textarea
                       rows={4}
+                      disabled={!hasClubRole}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      className={`w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
+                        !hasClubRole ? 'cursor-not-allowed bg-slate-50 opacity-80 dark:bg-slate-800/60' : ''
+                      }`}
                     />
                   </div>
 
                   {/* Row 3: Banner Image Upload */}
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Banner Image
-                    </label>
-                    <label className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-4 cursor-pointer hover:bg-slate-100/50 transition-colors dark:border-slate-700 dark:bg-slate-800/40">
-                      <UploadCloud className="h-6 w-6 text-slate-400 mb-1" />
-                      <span className="text-xs font-semibold text-[#6366f1]">
-                        Click to upload banner
-                      </span>
-                      <span className="text-[11px] text-slate-400 mt-0.5">
-                        SVG, PNG, JPG (1200x300 recommended)
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleBannerUpload}
-                      />
-                    </label>
-                  </div>
+                  {hasClubRole && (
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Banner Image
+                      </label>
+                      <label className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-4 cursor-pointer hover:bg-slate-100/50 transition-colors dark:border-slate-700 dark:bg-slate-800/40">
+                        <UploadCloud className="h-6 w-6 text-slate-400 mb-1" />
+                        <span className="text-xs font-semibold text-[#6366f1]">
+                          Click to upload banner
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-0.5">
+                          SVG, PNG, JPG (1200x300 recommended)
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleBannerUpload}
+                        />
+                      </label>
+                    </div>
+                  )}
 
                   {/* Row 4: Society Icon */}
                   <div>
@@ -925,15 +1204,17 @@ function ClubSettingsPage() {
                           <Camera className="h-6 w-6" />
                         )}
                       </div>
-                      <label className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-xs cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                        Change Icon
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleLogoUpload}
-                        />
-                      </label>
+                      {hasClubRole && (
+                        <label className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-xs cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                          Change Icon
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleLogoUpload}
+                          />
+                        </label>
+                      )}
                     </div>
                   </div>
 
@@ -949,65 +1230,78 @@ function ClubSettingsPage() {
                           className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                         >
                           {t}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTag(t)}
-                            className="text-slate-400 hover:text-slate-600"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
+                          {hasClubRole && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTag(t)}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
                         </span>
                       ))}
 
-                      {isAddingTag ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            autoFocus
-                            value={newTagInput}
-                            onChange={(e) => setNewTagInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                            className="h-7 rounded-lg border border-slate-200 px-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                            placeholder="Tag name..."
-                          />
+                      {hasClubRole && (
+                        isAddingTag ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={newTagInput}
+                              onChange={(e) => setNewTagInput(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                              className="h-7 rounded-lg border border-slate-200 px-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              placeholder="Tag name..."
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddTag}
+                              className="rounded-lg bg-[#6366f1] px-2 py-1 text-xs text-white"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             type="button"
-                            onClick={handleAddTag}
-                            className="rounded-lg bg-[#6366f1] px-2 py-1 text-xs text-white"
+                            onClick={() => setIsAddingTag(true)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400"
                           >
-                            Add
+                            <Plus className="h-3 w-3" />
+                            Add tag
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setIsAddingTag(true)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add tag
-                        </button>
+                        )
                       )}
                     </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveClubId(activeClubId)}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                    >
-                      Discard
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="inline-flex items-center gap-2 rounded-xl bg-[#6366f1] px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#4f46e5] disabled:opacity-50"
-                    >
-                      {saving ? 'Saving...' : 'Save Profile Configuration'}
-                    </button>
-                  </div>
+                  {hasClubRole ? (
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setActiveClubId(activeClubId)}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      >
+                        Discard
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#6366f1] px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#4f46e5] disabled:opacity-50"
+                      >
+                        {saving ? 'Saving...' : 'Save Profile Configuration'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
+                        <Info className="h-4 w-4 shrink-0 text-[#6366f1]" />
+                        <span>Viewing club profile in read-only mode. Only club officers and leaders can modify profile configuration.</span>
+                      </div>
+                    </div>
+                  )}
                 </form>
               </div>
             </div>

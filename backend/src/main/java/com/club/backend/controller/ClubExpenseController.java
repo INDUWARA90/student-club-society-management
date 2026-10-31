@@ -3,6 +3,7 @@ package com.club.backend.controller;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -41,6 +42,16 @@ public class ClubExpenseController {
             @RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(expenseService.getLedger(clubId, from, to, principal));
+    }
+
+    @GetMapping(value = "/csv", produces = "text/csv")
+    public ResponseEntity<String> exportLedgerCsv(@PathVariable UUID clubId,
+            @RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        String csv = expenseService.exportLedgerCsv(clubId, from, to, principal);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"club_ledger_" + clubId + ".csv\"")
+                .body(csv);
     }
 
     @PutMapping("/{expenseId}")

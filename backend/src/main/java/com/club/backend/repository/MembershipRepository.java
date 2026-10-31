@@ -20,6 +20,8 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 
     List<Membership> findByUserId(UUID userId);
 
+    List<Membership> findByUserIdAndStatus(UUID userId, MembershipStatus status);
+
     List<Membership> findByClubIdAndStatus(UUID clubId, MembershipStatus status);
 
     long countByClubIdAndStatus(UUID clubId, MembershipStatus status);

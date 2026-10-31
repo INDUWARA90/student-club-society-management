@@ -50,6 +50,18 @@ export const deleteEvent = createAsyncThunk(
   },
 )
 
+export const resubmitEvent = createAsyncThunk(
+  'events/resubmitEvent',
+  async (eventId, { rejectWithValue }) => {
+    try {
+      const { data } = await api.post(`/events/${eventId}/resubmit`)
+      return data
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error))
+    }
+  },
+)
+
 const eventsSlice = createSlice({
   name: 'events',
   initialState: {
@@ -80,10 +92,19 @@ const eventsSlice = createSlice({
         state.error = action.payload
       })
       .addCase(updateEvent.fulfilled, (state, action) => {
-        const index = state.items.findIndex((e) => e.id === action.payload.id)
-        if (index !== -1) {
-          state.items[index] = action.payload
+        if (action.payload.approvalStatus === 'PENDING' || action.payload.approvalStatus === 'REJECTED') {
+          state.items = state.items.filter((e) => e.id !== action.payload.id)
+        } else {
+          const index = state.items.findIndex((e) => e.id === action.payload.id)
+          if (index !== -1) {
+            state.items[index] = action.payload
+          } else {
+            state.items.push(action.payload)
+          }
         }
+      })
+      .addCase(resubmitEvent.fulfilled, (state, action) => {
+        state.items = state.items.filter((e) => e.id !== action.payload.id)
       })
       .addCase(deleteEvent.fulfilled, (state, action) => {
         state.items = state.items.filter((e) => e.id !== action.payload)

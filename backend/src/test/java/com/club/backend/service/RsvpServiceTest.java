@@ -280,4 +280,26 @@ class RsvpServiceTest {
         assertThat(c.getStatus()).isEqualTo(RsvpStatus.WAITLISTED);
         assertThat(c.getWaitlistOrder()).isEqualTo(1);
     }
+
+    @Test
+    void rsvp_facultyAdvisor_throwsForbidden() {
+        User advisor = User.builder().id(UUID.randomUUID()).name("Advisor").email("advisor@uni.edu").role(Role.FACULTY_ADVISOR).build();
+        UserPrincipal advisorPrincipal = new UserPrincipal(advisor);
+        when(userRepository.findById(advisor.getId())).thenReturn(Optional.of(advisor));
+
+        assertThatThrownBy(() -> rsvpService.rsvp(event.getId(), advisorPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Faculty Advisors have view-only access");
+    }
+
+    @Test
+    void rsvp_superAdmin_throwsForbidden() {
+        User admin = User.builder().id(UUID.randomUUID()).name("Admin").email("admin@uni.edu").role(Role.SUPER_ADMIN).build();
+        UserPrincipal adminPrincipal = new UserPrincipal(admin);
+        when(userRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> rsvpService.rsvp(event.getId(), adminPrincipal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Super Admins have administrative view-only access");
+    }
 }

@@ -31,6 +31,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     List<Payment> findByTypeAndReferenceIdInAndStatusAndRefundedAtIsNull(
             PaymentType type, List<UUID> referenceIds, PaymentStatus status);
 
+    List<Payment> findByStatusAndRefundedAtIsNull(PaymentStatus status);
+
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p "
             + "WHERE p.status = com.club.backend.entity.PaymentStatus.SUCCESS AND p.refundedAt IS NULL")
     BigDecimal sumLiveAmount();

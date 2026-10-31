@@ -21,13 +21,21 @@ public record ClubResponse(
         BigDecimal membershipFee,
         Integer certificateThreshold,
         boolean archived,
-        Long memberCount) {
+        Long memberCount,
+        boolean showBudgetToMembers) {
 
     public ClubResponse(UUID id, String name, String description, String category, ClubStatus status,
             JoinPolicy joinPolicy, String logoB64, UUID createdBy, Instant createdAt, BigDecimal membershipFee,
             Integer certificateThreshold, boolean archived) {
         this(id, name, description, category, status, joinPolicy, logoB64, createdBy, createdAt, membershipFee,
-                certificateThreshold, archived, null);
+                certificateThreshold, archived, null, false);
+    }
+
+    public ClubResponse(UUID id, String name, String description, String category, ClubStatus status,
+            JoinPolicy joinPolicy, String logoB64, UUID createdBy, Instant createdAt, BigDecimal membershipFee,
+            Integer certificateThreshold, boolean archived, Long memberCount) {
+        this(id, name, description, category, status, joinPolicy, logoB64, createdBy, createdAt, membershipFee,
+                certificateThreshold, archived, memberCount, false);
     }
 
     public static ClubResponse from(Club club) {
@@ -48,6 +56,7 @@ public record ClubResponse(
                 club.getMembershipFee(),
                 club.getCertificateThreshold(),
                 club.isArchived(),
-                memberCount);
+                memberCount,
+                club.isShowBudgetToMembers());
     }
 }

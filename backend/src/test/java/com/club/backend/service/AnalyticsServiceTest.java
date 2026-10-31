@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.club.backend.config.ApiException;
 import com.club.backend.dto.ClubLedgerResponse;
 import com.club.backend.dto.ClubStatsResponse;
+import com.club.backend.dto.UniversityStatsResponse;
 import com.club.backend.entity.Club;
 import com.club.backend.entity.ClubStatus;
 import com.club.backend.entity.Event;
@@ -27,6 +28,9 @@ import com.club.backend.entity.EventApprovalStatus;
 import com.club.backend.entity.Membership;
 import com.club.backend.entity.MembershipPosition;
 import com.club.backend.entity.MembershipStatus;
+import com.club.backend.entity.Payment;
+import com.club.backend.entity.PaymentStatus;
+import com.club.backend.entity.PaymentType;
 import com.club.backend.entity.Role;
 import com.club.backend.entity.RsvpStatus;
 import com.club.backend.entity.User;
@@ -236,5 +240,54 @@ class AnalyticsServiceTest {
         byte[] pdf = analyticsService.getUniversityStatsPdf();
 
         assertThat(new String(pdf, 0, 5, java.nio.charset.StandardCharsets.ISO_8859_1)).isEqualTo("%PDF-");
+    }
+
+    @Test
+    void getUniversityStats_computesPerClubPaymentsSeparately() {
+        UUID club1Id = UUID.randomUUID();
+        UUID club2Id = UUID.randomUUID();
+        Club club1 = Club.builder().id(club1Id).name("Robotics Club").category("Tech").status(ClubStatus.APPROVED).build();
+        Club club2 = Club.builder().id(club2Id).name("Debate Society").category("Academic").status(ClubStatus.APPROVED).build();
+
+        UUID event1Id = UUID.randomUUID();
+        Event event1 = Event.builder().id(event1Id).club(club1).title("RoboWars").build();
+
+        when(clubRepository.countByStatusAndArchivedFalse(ClubStatus.APPROVED)).thenReturn(2L);
+        when(userRepository.countByRole(Role.STUDENT)).thenReturn(50L);
+        when(eventRepository.countByApprovalStatusInAndCancelledFalse(org.mockito.ArgumentMatchers.anyList())).thenReturn(5L);
+        when(paymentRepository.sumLiveAmount()).thenReturn(new BigDecimal("150.00"));
+        when(clubRepository.findByStatus(ClubStatus.PENDING)).thenReturn(List.of());
+        when(eventRepository.findByApprovalStatus(EventApprovalStatus.PENDING)).thenReturn(List.of());
+
+        when(clubRepository.findByStatus(ClubStatus.APPROVED)).thenReturn(List.of(club1, club2));
+        when(eventRepository.findAll()).thenReturn(List.of(event1));
+
+        Payment p1 = Payment.builder().id(UUID.randomUUID()).type(PaymentType.MEMBERSHIP).referenceId(club1Id)
+                .amount(new BigDecimal("50.00")).status(PaymentStatus.SUCCESS).build();
+        Payment p2 = Payment.builder().id(UUID.randomUUID()).type(PaymentType.EVENT).referenceId(event1Id)
+                .amount(new BigDecimal("70.00")).status(PaymentStatus.SUCCESS).build();
+        Payment p3 = Payment.builder().id(UUID.randomUUID()).type(PaymentType.MEMBERSHIP).referenceId(club2Id)
+                .amount(new BigDecimal("30.00")).status(PaymentStatus.SUCCESS).build();
+
+        when(paymentRepository.findByStatusAndRefundedAtIsNull(PaymentStatus.SUCCESS)).thenReturn(List.of(p1, p2, p3));
+
+        UniversityStatsResponse res = analyticsService.getUniversityStats();
+
+        assertThat(res.clubPayments()).hasSize(2);
+        UniversityStatsResponse.ClubPaymentStat stat1 = res.clubPayments().stream()
+                .filter(c -> c.clubId().equals(club1Id)).findFirst().orElseThrow();
+        assertThat(stat1.clubName()).isEqualTo("Robotics Club");
+        assertThat(stat1.membershipPayments()).isEqualByComparingTo(new BigDecimal("50.00"));
+        assertThat(stat1.eventPayments()).isEqualByComparingTo(new BigDecimal("70.00"));
+        assertThat(stat1.totalCollected()).isEqualByComparingTo(new BigDecimal("120.00"));
+        assertThat(stat1.transactionCount()).isEqualTo(2);
+
+        UniversityStatsResponse.ClubPaymentStat stat2 = res.clubPayments().stream()
+                .filter(c -> c.clubId().equals(club2Id)).findFirst().orElseThrow();
+        assertThat(stat2.clubName()).isEqualTo("Debate Society");
+        assertThat(stat2.membershipPayments()).isEqualByComparingTo(new BigDecimal("30.00"));
+        assertThat(stat2.eventPayments()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(stat2.totalCollected()).isEqualByComparingTo(new BigDecimal("30.00"));
+        assertThat(stat2.transactionCount()).isEqualTo(1);
     }
 }

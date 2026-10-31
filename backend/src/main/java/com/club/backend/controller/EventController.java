@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.club.backend.dto.CreateEventRequest;
+import com.club.backend.dto.EventConflictResponse;
 import com.club.backend.dto.EventResponse;
 import com.club.backend.dto.ReasonRequest;
 import com.club.backend.security.UserPrincipal;
@@ -36,6 +37,16 @@ import lombok.RequiredArgsConstructor;
 public class EventController {
 
     private final EventService eventService;
+
+    @GetMapping("/events/check-conflict")
+    public ResponseEntity<EventConflictResponse> checkConflict(
+            @RequestParam(required = false) UUID venueId,
+            @RequestParam(required = false) String location,
+            @RequestParam Instant eventDate,
+            @RequestParam(required = false) Instant endDate,
+            @RequestParam(required = false) UUID excludeEventId) {
+        return ResponseEntity.ok(eventService.checkConflict(venueId, location, eventDate, endDate, excludeEventId));
+    }
 
     @PostMapping("/clubs/{clubId}/events")
     public ResponseEntity<EventResponse> createEvent(@PathVariable UUID clubId,
@@ -102,21 +113,35 @@ public class EventController {
     }
 
     @GetMapping("/events/pending")
-    @PreAuthorize("hasRole('FACULTY_ADVISOR')")
+    @PreAuthorize("hasRole('FACULTY_ADVISOR') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<List<EventResponse>> listPendingApprovals() {
         return ResponseEntity.ok(eventService.listPendingApprovals());
     }
 
+    @GetMapping("/events/advisor-history")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<EventResponse>> listAdvisorHistory(
+            @RequestParam(required = false) String status,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventService.listAdvisorEventHistory(status, principal));
+    }
+
     @PostMapping("/events/{eventId}/approve")
-    @PreAuthorize("hasRole('FACULTY_ADVISOR')")
+    @PreAuthorize("hasRole('FACULTY_ADVISOR') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<EventResponse> approveEvent(@PathVariable UUID eventId, @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(eventService.reviewEvent(eventId, true, principal));
     }
 
     @PostMapping("/events/{eventId}/reject")
-    @PreAuthorize("hasRole('FACULTY_ADVISOR')")
+    @PreAuthorize("hasRole('FACULTY_ADVISOR') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<EventResponse> rejectEvent(@PathVariable UUID eventId,
             @RequestBody(required = false) ReasonRequest body, @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(eventService.reviewEvent(eventId, false, body != null ? body.reason() : null, principal));
+    }
+
+    @PostMapping("/events/{eventId}/resubmit")
+    public ResponseEntity<EventResponse> resubmitEvent(@PathVariable UUID eventId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventService.resubmitEvent(eventId, principal));
     }
 }

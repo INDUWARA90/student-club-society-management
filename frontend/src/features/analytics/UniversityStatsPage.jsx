@@ -1,4 +1,15 @@
-import { CalendarCheck, ClipboardList, Download, Flag, GraduationCap, ShieldAlert, Wallet } from 'lucide-react'
+import {
+  ArrowUpRight,
+  CalendarCheck,
+  ClipboardList,
+  Download,
+  Flag,
+  GraduationCap,
+  Search,
+  ShieldAlert,
+  Wallet,
+  WalletCards,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -39,6 +50,7 @@ function UniversityStatsPage() {
   const [error, setError] = useState(null)
   const [events, setEvents] = useState([])
   const [clubs, setClubs] = useState([])
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState('')
 
   useEffect(() => {
     if (!isAuthorized) return
@@ -123,6 +135,47 @@ function UniversityStatsPage() {
       ],
     }
   }, [events])
+
+  const clubPayments = useMemo(() => stats?.clubPayments || [], [stats])
+
+  const filteredClubPayments = useMemo(() => {
+    if (!paymentSearchQuery.trim()) return clubPayments
+    const q = paymentSearchQuery.toLowerCase()
+    return clubPayments.filter(
+      (c) =>
+        c.clubName?.toLowerCase().includes(q) ||
+        c.clubCategory?.toLowerCase().includes(q),
+    )
+  }, [clubPayments, paymentSearchQuery])
+
+  const totalMembershipFees = useMemo(() => {
+    return clubPayments.reduce((acc, c) => acc + Number(c.membershipPayments || 0), 0)
+  }, [clubPayments])
+
+  const totalEventFees = useMemo(() => {
+    return clubPayments.reduce((acc, c) => acc + Number(c.eventPayments || 0), 0)
+  }, [clubPayments])
+
+  const paymentsByClubBarData = useMemo(() => {
+    const topClubs = clubPayments.slice(0, 8)
+    return {
+      labels: topClubs.map((c) => c.clubName),
+      datasets: [
+        {
+          label: 'Membership Fees ($)',
+          data: topClubs.map((c) => Number(c.membershipPayments || 0)),
+          backgroundColor: 'rgba(99, 102, 241, 0.85)',
+          borderRadius: 6,
+        },
+        {
+          label: 'Event Fees ($)',
+          data: topClubs.map((c) => Number(c.eventPayments || 0)),
+          backgroundColor: 'rgba(16, 185, 129, 0.85)',
+          borderRadius: 6,
+        },
+      ],
+    }
+  }, [clubPayments])
 
   if (user && !isAuthorized) {
     return (
@@ -213,7 +266,11 @@ function UniversityStatsPage() {
             </span>
             <div className="min-w-0">
               <p className="text-2xl font-bold leading-none text-ink dark:text-ink-dark">
-                {Number.isFinite(Number(value)) ? formatCompact(Number(value)) : value}
+                {Number.isFinite(Number(value))
+                  ? label === 'Payments collected'
+                    ? `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : formatCompact(Number(value))
+                  : value}
               </p>
               <p className="mt-1 truncate text-xs text-ink-muted dark:text-ink-dark-muted">{label}</p>
             </div>
@@ -295,6 +352,151 @@ function UniversityStatsPage() {
             ariaLabel="Event proposal statuses"
           />
         </ChartCard>
+      </div>
+
+      {/* Payments Collected by Club Section */}
+      <div className="mt-10 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800">
+          <div>
+            <h2 className="text-lg font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+              <WalletCards className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+              Payments Collected by Society
+            </h2>
+            <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
+              Individual breakdown of membership subscriptions and event fees collected by each club.
+            </p>
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search club or category..."
+              value={paymentSearchQuery}
+              onChange={(e) => setPaymentSearchQuery(e.target.value)}
+              className="h-8 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+          </div>
+        </div>
+
+        {/* Payments Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card interactive={false} className="p-4 border-l-4 border-l-brand-500">
+            <p className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">Total Payments Collected</p>
+            <p className="text-xl font-bold text-ink dark:text-ink-dark mt-1">
+              ${Number(stats.totalPaymentsCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">Across all active societies</p>
+          </Card>
+          <Card interactive={false} className="p-4 border-l-4 border-l-indigo-500">
+            <p className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">Membership Fees</p>
+            <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+              ${totalMembershipFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">Direct membership subscriptions</p>
+          </Card>
+          <Card interactive={false} className="p-4 border-l-4 border-l-emerald-500">
+            <p className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">Event Ticket Fees</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+              ${totalEventFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">Paid event participant admissions</p>
+          </Card>
+        </div>
+
+        {/* Revenue Comparison by Society Bar Chart */}
+        {clubPayments.length > 0 && (
+          <ChartCard
+            title="Revenue Comparison by Society"
+            subtitle="Breakdown of membership dues and event ticket revenues for top collecting societies"
+            empty={null}
+            table={{
+              columns: ['Club', 'Membership ($)', 'Events ($)', 'Total ($)'],
+              rows: filteredClubPayments.map((c) => [
+                c.clubName,
+                Number(c.membershipPayments || 0).toFixed(2),
+                Number(c.eventPayments || 0).toFixed(2),
+                Number(c.totalCollected || 0).toFixed(2),
+              ]),
+            }}
+          >
+            <BarChartJS
+              data={paymentsByClubBarData}
+              height={260}
+              ariaLabel="Payments collected per club comparison bar chart"
+            />
+          </ChartCard>
+        )}
+
+        {/* Detailed Breakdown Table */}
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-[#181b24]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 bg-slate-50/75 text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Society / Club</th>
+                  <th className="px-4 py-3 font-semibold">Category</th>
+                  <th className="px-4 py-3 font-semibold text-right">Membership Fees</th>
+                  <th className="px-4 py-3 font-semibold text-right">Event Fees</th>
+                  <th className="px-4 py-3 font-semibold text-right">Total Collected</th>
+                  <th className="px-4 py-3 font-semibold text-center">Transactions</th>
+                  <th className="px-4 py-3 font-semibold text-right">Budget & Ledger</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredClubPayments.length > 0 ? (
+                  filteredClubPayments.map((club) => {
+                    const total = Number(club.totalCollected || 0)
+                    const membership = Number(club.membershipPayments || 0)
+                    const event = Number(club.eventPayments || 0)
+                    return (
+                      <tr key={club.clubId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
+                          <span className="truncate">{club.clubName}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {club.clubCategory || 'General'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">
+                          ${membership.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">
+                          ${event.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">
+                          <span className={total > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''}>
+                            ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-slate-500 dark:text-slate-400">
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            {club.transactionCount || 0}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            to={`/budget?clubId=${club.clubId}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          >
+                            <span>Ledger</span>
+                            <ArrowUpRight className="h-3 w-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
+                      No society payments found matching your filter.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   )

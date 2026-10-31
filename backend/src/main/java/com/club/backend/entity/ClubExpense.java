@@ -9,6 +9,8 @@ import org.hibernate.annotations.UuidGenerator;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -59,6 +61,11 @@ public class ClubExpense {
     @Column(name = "expense_date", nullable = false)
     @Builder.Default
     private LocalDate expenseDate = LocalDate.now();
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entry_type", nullable = false, length = 20)
+    @Builder.Default
+    private ExpenseType entryType = ExpenseType.EXPENSE;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default

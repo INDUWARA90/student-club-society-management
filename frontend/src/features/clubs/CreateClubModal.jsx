@@ -21,8 +21,6 @@ function CreateClubModal({ club, onClose, onCreated }) {
   const [description, setDescription] = useState(club?.description || '')
   const [joinPolicy, setJoinPolicy] = useState(club?.joinPolicy || 'OPEN')
   const [logoB64, setLogoB64] = useState(club?.logoB64 || null)
-  const [membershipFee, setMembershipFee] = useState(String(club?.membershipFee ?? 0))
-  const [certificateThreshold, setCertificateThreshold] = useState(String(club?.certificateThreshold ?? 3))
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -50,8 +48,8 @@ function CreateClubModal({ club, onClose, onCreated }) {
       description,
       joinPolicy,
       logoB64,
-      membershipFee: Number(membershipFee) || 0,
-      certificateThreshold: Number(certificateThreshold) || 3,
+      membershipFee: Number(club?.membershipFee ?? 0),
+      certificateThreshold: Number(club?.certificateThreshold ?? 3),
     }
     const result = isEdit
       ? await dispatch(updateClub({ clubId: club.id, payload }))
@@ -109,34 +107,6 @@ function CreateClubModal({ club, onClose, onCreated }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-fee">Membership fee</label>
-              <input
-                id="club-fee"
-                type="number"
-                min="0"
-                step="0.01"
-                className={inputClass}
-                value={membershipFee}
-                onChange={(e) => setMembershipFee(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">0 = free to join</p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark" htmlFor="club-cert-threshold">Events for certificate</label>
-              <input
-                id="club-cert-threshold"
-                type="number"
-                min="1"
-                max="100"
-                className={inputClass}
-                value={certificateThreshold}
-                onChange={(e) => setCertificateThreshold(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">Attended events to earn one</p>
-            </div>
-          </div>
 
           {error && <p className="text-sm text-danger">{error}</p>}
 

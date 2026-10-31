@@ -136,27 +136,36 @@ function MemberDirectoryPage() {
   useEffect(() => {
     async function resolveClub() {
       try {
-        if (isSuperAdmin || isFacultyAdvisor) {
+        let list = []
+        try {
           const res = await api.get('/clubs')
-          const list = Array.isArray(res.data) ? res.data : []
-          setManagedClubs(list)
-          if (!routeClubId && list.length > 0) {
-            setActiveClubId(list[0].id)
-          }
-        } else {
-          const res = await api.get('/memberships/me')
-          const list = Array.isArray(res.data) ? res.data : []
-          const officerClubs = list.filter(
-            (m) => m.status === 'APPROVED' && OFFICER_POSITIONS.includes(m.position),
-          )
-          const mapped = officerClubs.map((m) => ({ id: m.clubId, name: m.clubName, position: m.position }))
-          setManagedClubs(mapped)
-          if (!routeClubId && mapped.length > 0) {
-            setActiveClubId(mapped[0].id)
-          }
+          list = Array.isArray(res.data) ? res.data : []
+        } catch {
+          // ignore
         }
+
+        let myMems = []
+        try {
+          const res = await api.get('/memberships/me')
+          myMems = Array.isArray(res.data) ? res.data : []
+        } catch {
+          // ignore
+        }
+
+        let combined = list.map((c) => {
+          const m = myMems.find((mem) => mem.clubId === c.id)
+          return { id: c.id, name: c.name, position: m?.position }
+        })
+
+        if (combined.length === 0 && myMems.length > 0) {
+          combined = myMems.map((m) => ({ id: m.clubId, name: m.clubName, position: m.position }))
+        }
+
+        setManagedClubs(combined)
         if (routeClubId) {
           setActiveClubId(routeClubId)
+        } else if (combined.length > 0) {
+          setActiveClubId(combined[0].id)
         }
       } catch {
         // ignore
@@ -165,7 +174,7 @@ function MemberDirectoryPage() {
       }
     }
     resolveClub()
-  }, [routeClubId, isSuperAdmin, isFacultyAdvisor])
+  }, [routeClubId])
 
   // Fetch approved members via Redux
   useEffect(() => {
@@ -174,9 +183,20 @@ function MemberDirectoryPage() {
     }
   }, [dispatch, activeClubId])
 
-  // Fetch pending join requests via API
+  const isPresident = useMemo(() => {
+    if (isSuperAdmin) return true
+    if (managedClubs.some((c) => c.id === activeClubId && c.position === 'PRESIDENT')) return true
+    const found = items.find(
+      (m) =>
+        (m.userId && user?.id && String(m.userId) === String(user.id)) ||
+        (m.userEmail && user?.email && m.userEmail.toLowerCase() === user.email.toLowerCase()),
+    )
+    return found?.position === 'PRESIDENT'
+  }, [isSuperAdmin, managedClubs, activeClubId, items, user])
+
+  // Fetch pending join requests via API (presidents and super admins only)
   useEffect(() => {
-    if (!activeClubId || isFacultyAdvisor) {
+    if (!activeClubId || !isPresident) {
       setPendingRequests([])
       return
     }
@@ -192,7 +212,7 @@ function MemberDirectoryPage() {
           setPendingRequests([])
         })
     }
-  }, [activeClubId, isFacultyAdvisor])
+  }, [activeClubId, isPresident])
 
   // Combine approved members and pending applicants without duplicate IDs
   const combinedMembers = useMemo(() => {
@@ -218,10 +238,6 @@ function MemberDirectoryPage() {
     )
   }, [combinedMembers, user])
 
-  const isPresident =
-    isSuperAdmin ||
-    myMembership?.position === 'PRESIDENT' ||
-    managedClubs.some((c) => c.id === activeClubId && c.position === 'PRESIDENT')
   const isOfficer =
     OFFICER_POSITIONS.includes(myMembership?.position) ||
     managedClubs.some((c) => c.id === activeClubId)
@@ -323,6 +339,10 @@ function MemberDirectoryPage() {
 
   // Export CSV
   async function handleExportData() {
+    if (!isPresident) {
+      showToast('Only the Club President can export member CSV', 'error')
+      return
+    }
     if (!activeClubId) return
     setExporting(true)
     try {
@@ -518,24 +538,21 @@ function MemberDirectoryPage() {
     )
   }
 
-  if (status !== 'loading' && !isAuthorized) {
+  if (status !== 'loading' && managedClubs.length === 0 && !activeClubId) {
     return (
       <div className="mx-auto max-w-xl p-4 py-16 md:p-8 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
-          <ShieldAlert className="h-7 w-7" />
-        </div>
         <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">
-          Restricted to Club Officers
+          No Clubs Available
         </h2>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          The member directory and member management are only accessible to club presidents and designated club officers.
+          There are currently no active clubs to view members for.
         </p>
         <div className="mt-6">
           <Link
-            to={activeClubId ? `/clubs/${activeClubId}` : '/clubs'}
+            to="/clubs"
             className="inline-flex items-center gap-2 rounded-xl bg-[#6366f1] px-5 py-2.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-[#4f46e5]"
           >
-            Back to Club
+            Explore Clubs
           </Link>
         </div>
       </div>
@@ -567,17 +584,19 @@ function MemberDirectoryPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            disabled={exporting}
-            onClick={handleExportData}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-xs transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          >
-            <Download className="h-4 w-4 text-slate-500" />
-            Export Data
-          </button>
+          {isPresident && (
+            <button
+              type="button"
+              disabled={exporting}
+              onClick={handleExportData}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-xs transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <Download className="h-4 w-4 text-slate-500" />
+              Export Data
+            </button>
+          )}
 
-          {!isFacultyAdvisor && (
+          {isPresident && (
             <button
               type="button"
               onClick={() => setInviteModalOpen(true)}
@@ -731,7 +750,7 @@ function MemberDirectoryPage() {
             <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
                 <th className="w-10 px-4 py-3.5 text-center">
-                  {!isFacultyAdvisor && (
+                  {isPresident && (
                     <input
                       type="checkbox"
                       checked={allCurrentSelected}
@@ -783,7 +802,7 @@ function MemberDirectoryPage() {
                     >
                       {/* Checkbox */}
                       <td className="w-10 px-4 py-3.5 text-center">
-                        {!isFacultyAdvisor && (
+                        {isPresident && (
                           <input
                             type="checkbox"
                             checked={isChecked}
@@ -835,7 +854,7 @@ function MemberDirectoryPage() {
 
                       {/* Actions */}
                       <td className="px-4 py-3.5 text-right">
-                        {isFacultyAdvisor ? (
+                        {!isPresident ? (
                           <span className="text-[11px] font-medium text-slate-400 italic">Read-only</span>
                         ) : (
                           <div className="flex items-center justify-end gap-1.5">
@@ -940,7 +959,7 @@ function MemberDirectoryPage() {
       </div>
 
       {/* Floating Bottom Batch Action Dock */}
-      {!isFacultyAdvisor && selectedIds.length > 0 && (
+      {isPresident && selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-2xl bg-slate-900 px-5 py-3 text-white shadow-2xl ring-1 ring-white/10 dark:bg-slate-950">
           <div className="flex items-center gap-2">
             <input

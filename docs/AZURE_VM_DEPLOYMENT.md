@@ -237,9 +237,20 @@ And make sure `FRONTEND_URL` in `.env` is `http://<VM_PUBLIC_IP_OR_DNS>`.
 
 ---
 
-## Step 8: Automated CI/CD with GitHub Actions
+## Step 8: Automated CI/CD with Container Images (GHCR)
 
-The workflow file [.github/workflows/deploy-azure-vm.yml](file:///.github/workflows/deploy-azure-vm.yml) is configured to automatically deploy to your Azure VM every time you push changes to `main`.
+The automated workflow [.github/workflows/deploy-azure-vm.yml](file:///.github/workflows/deploy-azure-vm.yml) uses a **pure container-image architecture**:
+
+1. **Job 1 (Build & Push)**:
+   - GitHub Actions runners compile the Spring Boot backend and Vite frontend in the cloud.
+   - Pushes immutable, version-tagged Docker container images to **GitHub Container Registry (GHCR)**:
+     - `ghcr.io/<owner>/student-club-society-management-backend:latest`
+     - `ghcr.io/<owner>/student-club-society-management-frontend:latest`
+2. **Job 2 (Deploy to Azure VM)**:
+   - Connects to your Azure VM over SSH.
+   - Pulls the pre-built images with `docker compose -f docker-compose.prod.yml pull`.
+   - Starts containers immediately without any compiling or Maven/npm overhead on the VM.
+   - Verifies health check on `/api/health`.
 
 ### 1. Add Secrets to GitHub
 
@@ -254,19 +265,8 @@ In your GitHub repository:
 | `AZURE_VM_SSH_KEY` | `-----BEGIN OPENSSH PRIVATE KEY...` | Contents of your private key `.pem` file *(Leave empty if using password)* |
 | `AZURE_VM_PASSWORD` | `<VM_PASSWORD>` | *(Only needed if you use password auth instead of an SSH key)* |
 
-### 2. Verify Git Access on the VM
-
-If your repository is **private**, ensure the VM can pull updates without prompting for interactive credentials:
-```bash
-# On your Azure VM:
-git config --global credential.helper store
-```
-Or set up an SSH deploy key in GitHub (**Settings → Deploy keys**).
-
-### 3. Test Automated Deployment
-
-- Push any change to the `main` branch, or
-- Go to GitHub → **Actions** → select **Deploy to Azure VM** → click **Run workflow**.
+### 2. Routine Updates
+Every time you `git push origin main`, GitHub Actions automatically builds the new container images, pushes them to GHCR, and updates the running containers on your VM within seconds.
 
 ---
 

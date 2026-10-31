@@ -29,20 +29,56 @@ jobs:
           port: 22
           script_stop: true
           script: |
-            set -euo pipefail
+            set -eo pipefail
+
+            echo "=== System Diagnostic Info ==="
+            echo "SSH User: $(whoami)"
+            echo "User Home: $HOME"
+            echo "Current Dir: $(pwd)"
+            echo "Home contents:"
+            ls -la "$HOME" || true
 
             echo "=== Step 1: Locating application repository ==="
-            if [ -d "$HOME/student-club-society-management" ]; then
-              cd "$HOME/student-club-society-management"
-            elif [ -d "/home/azureuser/student-club-society-management" ]; then
-              cd "/home/azureuser/student-club-society-management"
-            else
-              echo "Error: Repository folder 'student-club-society-management' not found."
-              exit 1
-            fi
-            echo "Working directory: $(pwd)"
+            APP_DIR=""
 
-            echo "=== Step 2: Pulling latest changes from main ==="
+            # Check if currently inside the repo
+            if [ -f "./docker-compose.yml" ] && [ -d "./.git" ]; then
+              APP_DIR="$(pwd)"
+            # Check standard path in $HOME
+            elif [ -d "$HOME/student-club-society-management" ]; then
+              APP_DIR="$HOME/student-club-society-management"
+            # Check /home/azureuser
+            elif [ -d "/home/azureuser/student-club-society-management" ]; then
+              APP_DIR="/home/azureuser/student-club-society-management"
+            else
+              # Search for docker-compose.yml anywhere in $HOME
+              FOUND_COMPOSE=$(find "$HOME" -maxdepth 3 -name "docker-compose.yml" 2>/dev/null | head -n 1 || true)
+              if [ -n "$FOUND_COMPOSE" ]; then
+                APP_DIR="$(dirname "$FOUND_COMPOSE")"
+              fi
+            fi
+
+            # If still not found, clone it automatically
+            if [ -z "$APP_DIR" ]; then
+              echo "Repository not found on VM. Auto-cloning into $HOME/student-club-society-management..."
+              git clone https://github.com/INDUWARA90/student-club-society-management.git "$HOME/student-club-society-management"
+              APP_DIR="$HOME/student-club-society-management"
+            fi
+
+            cd "$APP_DIR"
+            echo "Target application directory: $(pwd)"
+
+            # Ensure .env exists so docker compose doesn't fail
+            if [ ! -f .env ]; then
+              echo "Notice: .env not found. Creating default from .env.example..."
+              cp .env.example .env
+              RANDOM_SECRET=$(openssl rand -hex 32 2>/dev/null || echo "default-long-secret-key-12345678901234567890")
+              sed -i "s|JWT_SECRET=.*|JWT_SECRET=${RANDOM_SECRET}|" .env
+              sed -i "s|MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=rootpassword123!|" .env
+              sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=dbpassword123!|" .env
+            fi
+
+            echo "=== Step 2: Fetching latest changes from main ==="
             git fetch origin main
             git reset --hard origin/main
 
@@ -55,7 +91,7 @@ jobs:
             echo "=== Step 5: Checking backend health ==="
             for i in $(seq 1 30); do
               if curl -fsS http://localhost:5000/api/health > /dev/null 2>&1; then
-                echo "SUCCESS: Backend is healthy and running!"
+                echo "SUCCESS: Backend is healthy and responding!"
                 docker compose ps
                 exit 0
               fi
@@ -63,8 +99,8 @@ jobs:
               sleep 5
             done
 
-            echo "ERROR: Backend did not report healthy within 150 seconds."
-            docker compose logs --tail=50 backend
+            echo "ERROR: Backend did not report healthy within timeout."
+            docker compose logs --tail=50 backend || true
             exit 1
 
       - name: Deployment summary

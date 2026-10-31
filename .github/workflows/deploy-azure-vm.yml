@@ -1,0 +1,78 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: azure-vm-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Azure VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Azure VM via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AZURE_VM_HOST }}
+          username: ${{ secrets.AZURE_VM_USERNAME }}
+          key: ${{ secrets.AZURE_VM_SSH_KEY }}
+          password: ${{ secrets.AZURE_VM_PASSWORD }}
+          port: 22
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            echo "=== Step 1: Locating application repository ==="
+            if [ -d "$HOME/student-club-society-management" ]; then
+              cd "$HOME/student-club-society-management"
+            elif [ -d "/home/azureuser/student-club-society-management" ]; then
+              cd "/home/azureuser/student-club-society-management"
+            else
+              echo "Error: Repository folder 'student-club-society-management' not found."
+              exit 1
+            fi
+            echo "Working directory: $(pwd)"
+
+            echo "=== Step 2: Pulling latest changes from main ==="
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "=== Step 3: Rebuilding and restarting containers ==="
+            docker compose up -d --build
+
+            echo "=== Step 4: Cleaning dangling Docker images ==="
+            docker image prune -f
+
+            echo "=== Step 5: Checking backend health ==="
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost:5000/api/health > /dev/null 2>&1; then
+                echo "SUCCESS: Backend is healthy and running!"
+                docker compose ps
+                exit 0
+              fi
+              echo "Waiting for backend to become healthy (attempt $i/30)..."
+              sleep 5
+            done
+
+            echo "ERROR: Backend did not report healthy within 150 seconds."
+            docker compose logs --tail=50 backend
+            exit 1
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          {
+            echo "### Azure VM Deployment Summary"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Branch: \`${{ github.ref_name }}\`"
+            echo "- Status: \`${{ job.status }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

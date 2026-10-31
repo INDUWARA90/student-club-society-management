@@ -237,6 +237,39 @@ And make sure `FRONTEND_URL` in `.env` is `http://<VM_PUBLIC_IP_OR_DNS>`.
 
 ---
 
+## Step 8: Automated CI/CD with GitHub Actions
+
+The workflow file [.github/workflows/deploy-azure-vm.yml](file:///.github/workflows/deploy-azure-vm.yml) is configured to automatically deploy to your Azure VM every time you push changes to `main`.
+
+### 1. Add Secrets to GitHub
+
+In your GitHub repository:
+1. Navigate to **Settings** → **Secrets and variables** → **Actions**.
+2. Click **New repository secret** and add the following:
+
+| Secret Name | Value | Description |
+|---|---|---|
+| `AZURE_VM_HOST` | `<VM_PUBLIC_IP_OR_DNS>` | Your Azure VM Public IP (e.g. `20.xxx.xxx.xxx`) |
+| `AZURE_VM_USERNAME` | `azureuser` | The SSH username you use to log into the VM |
+| `AZURE_VM_SSH_KEY` | `-----BEGIN OPENSSH PRIVATE KEY...` | Contents of your private key `.pem` file *(Leave empty if using password)* |
+| `AZURE_VM_PASSWORD` | `<VM_PASSWORD>` | *(Only needed if you use password auth instead of an SSH key)* |
+
+### 2. Verify Git Access on the VM
+
+If your repository is **private**, ensure the VM can pull updates without prompting for interactive credentials:
+```bash
+# On your Azure VM:
+git config --global credential.helper store
+```
+Or set up an SSH deploy key in GitHub (**Settings → Deploy keys**).
+
+### 3. Test Automated Deployment
+
+- Push any change to the `main` branch, or
+- Go to GitHub → **Actions** → select **Deploy to Azure VM** → click **Run workflow**.
+
+---
+
 ## Routine Operations & Maintenance
 
 ### Pulling Updates / Redeploying

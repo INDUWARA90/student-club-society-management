@@ -34,6 +34,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import EventComments from './EventComments'
 import CreateEventModal from './CreateEventModal'
+import EventStatusBadge from './EventStatusBadge'
 
 const OFFICER_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
 
@@ -422,33 +423,7 @@ function EventDetailPage() {
 
             {/* Status Pills */}
             <div className="pointer-events-auto flex items-center gap-2">
-              {event.cancelled && (
-                <span className="rounded-full bg-rose-600/90 px-3 py-1 text-xs font-bold text-white shadow-md backdrop-blur-md">
-                  Cancelled
-                </span>
-              )}
-              {!event.cancelled && event.approvalStatus === 'PENDING' && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/95 px-3 py-1 text-xs font-bold text-white shadow-md backdrop-blur-md">
-                  <Clock className="h-3 w-3" /> Pending Sign-off
-                </span>
-              )}
-              {!event.cancelled && event.approvalStatus === 'REJECTED' && (
-                <span className="rounded-full bg-rose-600/90 px-3 py-1 text-xs font-bold text-white shadow-md backdrop-blur-md">
-                  Rejected
-                </span>
-              )}
-              {!event.cancelled && (event.approvalStatus === 'APPROVED' || event.approvalStatus === 'NOT_REQUIRED') && (
-                isPast ? (
-                  <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-300 shadow-md backdrop-blur-md border border-slate-700">
-                    Past Event
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/90 px-3 py-1 text-xs font-bold text-white shadow-md backdrop-blur-md">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                    Upcoming
-                  </span>
-                )
-              )}
+              <EventStatusBadge event={event} isPast={isPast} />
             </div>
           </div>
 

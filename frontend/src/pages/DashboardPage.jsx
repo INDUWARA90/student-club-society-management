@@ -31,60 +31,10 @@ import LineChartJS from '../components/charts/chartjs/LineChartJS'
 import { monthlyCounts } from '../components/charts/chartUtils'
 import { useToast } from '../components/ToastProvider'
 import StatCard from '../components/ui/StatCard'
-import AdvisorRequestModal from '../features/advisor/AdvisorRequestModal'
-import ResolveAdvisorRequestModal from '../features/advisor/ResolveAdvisorRequestModal'
-import CreateClubModal from '../features/clubs/CreateClubModal'
-import CreateEventModal from '../features/events/CreateEventModal'
 import EventCard from '../features/events/EventCard'
-
-function getClubCoverGradient(category = '') {
-  const cat = (category || '').toLowerCase()
-  if (cat.includes('tech') || cat.includes('code') || cat.includes('ai') || cat.includes('cyber')) {
-    return 'from-blue-600 via-indigo-600 to-cyan-500'
-  }
-  if (cat.includes('art') || cat.includes('cultur') || cat.includes('photo') || cat.includes('design')) {
-    return 'from-purple-600 via-fuchsia-600 to-pink-500'
-  }
-  if (cat.includes('sport') || cat.includes('hik') || cat.includes('adventur')) {
-    return 'from-emerald-600 via-teal-600 to-lime-500'
-  }
-  if (cat.includes('academ') || cat.includes('debat') || cat.includes('sci')) {
-    return 'from-amber-600 via-orange-600 to-yellow-500'
-  }
-  return 'from-[#6366f1] via-[#7c5cfc] to-[#4f46e5]'
-}
-
-function formatEventTime(startIso, endIso) {
-  if (!startIso) return 'TBA'
-  try {
-    const start = new Date(startIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    if (!endIso) return start
-    const end = new Date(endIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    return `${start} - ${end}`
-  } catch {
-    return 'TBA'
-  }
-}
-
-function timeAgo(dateString) {
-  if (!dateString) return ''
-  try {
-    const date = new Date(dateString)
-    const now = new Date()
-    const seconds = Math.floor((now - date) / 1000)
-    if (seconds < 60) return 'Just now'
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-    const days = Math.floor(hours / 24)
-    if (days === 1) return 'Yesterday'
-    if (days < 7) return `${days} days ago`
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  } catch {
-    return ''
-  }
-}
+import DashboardModals from './dashboard/DashboardModals'
+import RecentActivity from './dashboard/RecentActivity'
+import { formatEventTime, getClubCoverGradient } from './dashboard/dashboardUtils'
 
 function DashboardPage() {
   const navigate = useNavigate()
@@ -1946,79 +1896,38 @@ function DashboardPage() {
             </>
           )}
 
-          {/* Recent Activity Card */}
-          <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800/80 dark:bg-[#181b24]">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">Recent Activity</h2>
-
-            {recentActivities.length > 0 ? (
-              <div className="mt-4 space-y-4">
-                {recentActivities.map((act) => (
-                  <div key={act.id} className="flex items-start gap-3 text-xs">
-                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#6366f1]" />
-                    <div className="min-w-0 flex-1">
-                      <div className="leading-snug text-slate-700 dark:text-slate-300">{act.content}</div>
-                      <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{timeAgo(act.createdAt)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">
-                No recent activity yet. When you join clubs, RSVP to events, or receive announcements, your activity
-                will appear here.
-              </p>
-            )}
-          </div>
+          <RecentActivity activities={recentActivities} />
         </aside>
       </div>
 
-      {showCreateEventModal && (
-        <CreateEventModal
-          event={editingEvent}
-          clubId={editingEvent?.clubId}
-          clubs={clubsList}
-          onClose={() => {
-            setShowCreateEventModal(false)
-            setEditingEvent(null)
-          }}
-          onCreated={handleEventCreatedOrUpdated}
-        />
-      )}
-      {showCreateClubModal && (
-        <CreateClubModal
-          club={editingClub}
-          onClose={() => {
-            setEditingClub(null)
-            setShowCreateClubModal(false)
-          }}
-          onCreated={(saved) => {
-            if (editingClub) {
-              setClubsList((prev) => prev.map((c) => (c.id === saved.id ? saved : c)))
-            } else {
-              setClubsList((prev) => [saved, ...prev])
-            }
-            setEditingClub(null)
-            setShowCreateClubModal(false)
-          }}
-        />
-      )}
-      {showAdvisorRequestModal && (
-        <AdvisorRequestModal
-          isOpen={showAdvisorRequestModal}
-          onClose={() => setShowAdvisorRequestModal(false)}
-          clubs={clubsList}
-          onCreated={handleAdvisorRequestCreated}
-        />
-      )}
-      {selectedAdvisorRequest && (
-        <ResolveAdvisorRequestModal
-          isOpen={Boolean(selectedAdvisorRequest)}
-          onClose={() => setSelectedAdvisorRequest(null)}
-          request={selectedAdvisorRequest}
-          onResolved={handleAdvisorRequestResolved}
-          onDeleteClub={handleDeleteClub}
-        />
-      )}
+      <DashboardModals
+        clubs={clubsList}
+        editingClub={editingClub}
+        editingEvent={editingEvent}
+        onAdvisorRequestCreated={handleAdvisorRequestCreated}
+        onCloseAdvisorRequest={() => setShowAdvisorRequestModal(false)}
+        onCloseClub={() => {
+          setEditingClub(null)
+          setShowCreateClubModal(false)
+        }}
+        onCloseEvent={() => {
+          setShowCreateEventModal(false)
+          setEditingEvent(null)
+        }}
+        onCloseResolution={() => setSelectedAdvisorRequest(null)}
+        onClubSaved={(saved) => {
+          setClubsList((previous) => editingClub ? previous.map((club) => (club.id === saved.id ? saved : club)) : [saved, ...previous])
+          setEditingClub(null)
+          setShowCreateClubModal(false)
+        }}
+        onDeleteClub={handleDeleteClub}
+        onEventSaved={handleEventCreatedOrUpdated}
+        onRequestResolved={handleAdvisorRequestResolved}
+        selectedAdvisorRequest={selectedAdvisorRequest}
+        showAdvisorRequestModal={showAdvisorRequestModal}
+        showCreateClubModal={showCreateClubModal}
+        showCreateEventModal={showCreateEventModal}
+      />
     </div>
   )
 }

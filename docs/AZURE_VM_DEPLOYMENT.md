@@ -147,10 +147,13 @@ Your frontend and backend need their network ports opened in Azure:
    # Public addresses (replace with your Azure VM public IP or Azure DNS name)
    # If frontend is on port 8080:
    FRONTEND_URL=http://<VM_PUBLIC_IP_OR_DNS>:8080
+   # Specify all origins accessing the API (comma-separated, supports DNS and IP):
+   CORS_ALLOWED_ORIGINS=http://<VM_DNS>:8080,http://<VM_PUBLIC_IP>:8080
    VITE_API_BASE_URL=http://<VM_PUBLIC_IP_OR_DNS>:5000/api
 
    # If mapping frontend to port 80:
    # FRONTEND_URL=http://<VM_PUBLIC_IP_OR_DNS>
+   # CORS_ALLOWED_ORIGINS=http://<VM_DNS>,http://<VM_PUBLIC_IP>
    # VITE_API_BASE_URL=http://<VM_PUBLIC_IP_OR_DNS>:5000/api
 
    # Initial Super Admin creation on first startup
@@ -302,3 +305,25 @@ docker compose logs -f backend
 docker compose logs -f frontend
 docker compose logs -f mysql
 ```
+
+---
+
+## Troubleshooting
+
+### CORS errors when accessing via Azure DNS or IP
+If you see errors such as:
+`Access to XMLHttpRequest at 'http://<VM_IP>:5000/api/auth/login' from origin 'http://<VM_DNS>:8080' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.`
+
+1. Open `.env` on your Azure VM:
+   ```bash
+   nano ~/student-club-society-management/.env
+   ```
+2. Update `CORS_ALLOWED_ORIGINS` to include both your Azure DNS domain and public IP:
+   ```dotenv
+   CORS_ALLOWED_ORIGINS=http://<VM_DNS>:8080,http://<VM_PUBLIC_IP>:8080,http://localhost:8080
+   FRONTEND_URL=http://<VM_DNS>:8080
+   ```
+3. Restart the backend container:
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d backend
+   ```

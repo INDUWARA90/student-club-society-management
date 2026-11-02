@@ -36,6 +36,8 @@ import com.club.backend.repository.EventRepository;
 import com.club.backend.repository.MembershipRepository;
 import com.club.backend.repository.RsvpRepository;
 import com.club.backend.repository.UserRepository;
+import com.club.backend.repository.AuditLogRepository;
+import com.club.backend.service.AuditLogService;
 import com.club.backend.repository.VenueRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -58,6 +60,8 @@ public class DataSeeder implements CommandLineRunner {
     private final ClubAnnouncementRepository announcementRepository;
     private final ClubExpenseRepository expenseRepository;
     private final VenueRepository venueRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -145,6 +149,8 @@ public class DataSeeder implements CommandLineRunner {
         attendanceRepository.save(Attendance.builder().event(pastWorkshop).user(bob).method(AttendanceMethod.MANUAL).build());
         attendanceRepository.save(Attendance.builder().event(pastWorkshop).user(carol).method(AttendanceMethod.QR).build());
 
+        seedAuditLogsIfMissing(superAdmin, advisor, alice, techClub, artClub, pastWorkshop);
+
         System.out.println("Seed data loaded. Demo accounts (password: " + DEMO_PASSWORD + "):");
         System.out.println("  Super Admin:      " + superAdmin.getEmail());
         System.out.println("  Faculty Advisor:  " + advisor.getEmail());
@@ -195,6 +201,44 @@ public class DataSeeder implements CommandLineRunner {
                 .category("Food & Refreshments")
                 .expenseDate(LocalDate.now().minusDays(3))
                 .build());
+    }
+
+
+    private void seedAuditLogsIfMissing(User superAdmin, User advisor, User alice, Club techClub, Club artClub, Event pastWorkshop) {
+        if (auditLogRepository.count() > 0) {
+            return;
+        }
+        auditLogService.log(superAdmin, "CREATE_USER", "USER", advisor.getId(), advisor.getEmail() + " as FACULTY_ADVISOR");
+        auditLogService.log(superAdmin, "CREATE_CLUB", "CLUB", techClub.getId(), techClub.getName());
+        auditLogService.log(superAdmin, "APPROVE_CLUB", "CLUB", artClub.getId(), artClub.getName());
+        auditLogService.log(advisor, "APPROVE_EVENT", "EVENT", pastWorkshop.getId(), pastWorkshop.getTitle());
+        auditLogService.log(alice, "LOG_EXPENSE", "EXPENSE", techClub.getId(), "Hackathon Refreshments & Cloud Server credits");
+        auditLogService.log(superAdmin, "ACTIVATE_USER", "USER", alice.getId(), alice.getEmail());
+    }
+
+    private void seedAuditLogsIfEmpty() {
+        if (auditLogRepository.count() > 0) {
+            return;
+        }
+        User superAdmin = userRepository.findByRole(Role.SUPER_ADMIN).stream().findFirst().orElse(null);
+        User advisor = userRepository.findByRole(Role.FACULTY_ADVISOR).stream().findFirst().orElse(null);
+        User student = userRepository.findByRole(Role.STUDENT).stream().findFirst().orElse(null);
+        Club club = clubRepository.findAll().stream().findFirst().orElse(null);
+        Event event = eventRepository.findAll().stream().findFirst().orElse(null);
+
+        if (superAdmin != null && club != null) {
+            auditLogService.log(superAdmin, "CREATE_CLUB", "CLUB", club.getId(), club.getName());
+            auditLogService.log(superAdmin, "APPROVE_CLUB", "CLUB", club.getId(), club.getName());
+        }
+        if (advisor != null && event != null) {
+            auditLogService.log(advisor, "APPROVE_EVENT", "EVENT", event.getId(), event.getTitle());
+        }
+        if (student != null && club != null) {
+            auditLogService.log(student, "LOG_EXPENSE", "EXPENSE", club.getId(), "Event materials and venue supplies");
+        }
+        if (superAdmin != null && student != null) {
+            auditLogService.log(superAdmin, "ACTIVATE_USER", "USER", student.getId(), student.getEmail());
+        }
     }
 
     private User createUser(String name, String email, Role role) {

@@ -140,6 +140,10 @@ public class EventService {
                 .approvalStatus(requiresFaApproval ? EventApprovalStatus.PENDING : EventApprovalStatus.APPROVED)
                 .build();
         event = eventRepository.save(event);
+        User creator = userRepository.findById(principal.getId()).orElse(null);
+        if (creator != null) {
+            auditLogService.log(creator, "CREATE_EVENT", "EVENT", event.getId(), event.getTitle());
+        }
 
         if (requiresFaApproval) {
             notifyFacultyAdvisors(event, false);
@@ -412,6 +416,10 @@ public class EventService {
             notifyFacultyAdvisors(event, oldStatus == EventApprovalStatus.REJECTED);
         }
 
+        User editor = userRepository.findById(principal.getId()).orElse(null);
+        if (editor != null) {
+            auditLogService.log(editor, "UPDATE_EVENT", "EVENT", event.getId(), event.getTitle());
+        }
         return EventResponse.from(event);
     }
 
@@ -761,7 +769,8 @@ public class EventService {
 
         User actor = userRepository.findById(principal.getId())
                 .orElseThrow(() -> ApiException.notFound("User not found"));
-        auditLogService.log(actor, approve ? "APPROVE_EVENT" : "REJECT_EVENT", "EVENT", event.getId(), event.getTitle());
+        String details = event.getTitle() + (!approve && cleanReason != null ? " - Reason: " + cleanReason : "");
+        auditLogService.log(actor, approve ? "APPROVE_EVENT" : "REJECT_EVENT", "EVENT", event.getId(), details);
 
         String eventTitle = event.getTitle();
         String why = !approve && cleanReason != null ? " Reason: " + cleanReason : "";

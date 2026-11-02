@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.club.backend.entity.AuditLog;
+import com.club.backend.entity.User;
 
 public record AuditLogResponse(
         UUID id,
@@ -22,11 +23,25 @@ public record AuditLogResponse(
     }
 
     public static AuditLogResponse from(AuditLog log) {
+        String actorName = "Unknown";
+        String actorEmail = null;
+        String actorRole = null;
+        try {
+            User actor = log.getActor();
+            if (actor != null) {
+                actorName = actor.getName() != null ? actor.getName() : "Unknown";
+                actorEmail = actor.getEmail();
+                actorRole = actor.getRole() != null ? actor.getRole().name() : null;
+            }
+        } catch (Exception ignored) {
+            // Safe fallback if actor was deleted or cannot be resolved
+        }
+
         return new AuditLogResponse(
                 log.getId(),
-                log.getActor() != null ? log.getActor().getName() : "Unknown",
-                log.getActor() != null ? log.getActor().getEmail() : null,
-                log.getActor() != null && log.getActor().getRole() != null ? log.getActor().getRole().name() : null,
+                actorName,
+                actorEmail,
+                actorRole,
                 log.getAction(),
                 log.getTargetType(),
                 log.getTargetId(),

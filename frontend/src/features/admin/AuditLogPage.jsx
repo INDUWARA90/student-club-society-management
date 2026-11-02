@@ -94,7 +94,7 @@ function getActionMeta(action = '') {
     }
   }
 
-  if (norm.includes('EXPENSE')) {
+  if (norm.includes('EXPENSE') || norm.includes('INCOME')) {
     return {
       label: action.replace(/_/g, ' ').toLowerCase(),
       badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50',
@@ -275,10 +275,22 @@ function AuditLogPage() {
       // Action Filter
       if (selectedActionFilter !== 'ALL') {
         const norm = (log.action || '').toUpperCase()
-        if (selectedActionFilter === 'APPROVALS' && !norm.startsWith('APPROVE_') && norm !== 'ACTIVATE_USER') {
+        if (
+          selectedActionFilter === 'APPROVALS' &&
+          !norm.startsWith('APPROVE_') &&
+          norm !== 'ACTIVATE_USER' &&
+          norm !== 'UNARCHIVE_CLUB' &&
+          norm !== 'RESOLVE_ADVISOR_REQUEST'
+        ) {
           return false
         }
-        if (selectedActionFilter === 'REJECTIONS' && !norm.startsWith('REJECT_') && norm !== 'DEACTIVATE_USER') {
+        if (
+          selectedActionFilter === 'REJECTIONS' &&
+          !norm.startsWith('REJECT_') &&
+          norm !== 'DEACTIVATE_USER' &&
+          norm !== 'REMOVE_REPORTED_COMMENT' &&
+          norm !== 'DISMISS_COMMENT_REPORT'
+        ) {
           return false
         }
         if (
@@ -288,10 +300,18 @@ function AuditLogPage() {
         ) {
           return false
         }
-        if (selectedActionFilter === 'FINANCE' && !norm.includes('EXPENSE')) {
+        if (selectedActionFilter === 'FINANCE' && !norm.includes('EXPENSE') && !norm.includes('INCOME')) {
           return false
         }
-        if (selectedActionFilter === 'USER_MGMT' && !norm.includes('USER') && !norm.includes('MEMBER')) {
+        if (
+          selectedActionFilter === 'USER_MGMT' &&
+          !norm.includes('USER') &&
+          !norm.includes('MEMBER') &&
+          !norm.includes('PRESIDENT') &&
+          !norm.includes('POSITION') &&
+          log.targetType !== 'USER' &&
+          log.targetType !== 'MEMBERSHIP'
+        ) {
           return false
         }
       }
@@ -743,7 +763,7 @@ function AuditLogPage() {
 
                         {log.targetId && (
                           <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[150px]">
-                            #{log.targetId.slice(-8)}
+                            #{String(log.targetId).slice(-8)}
                           </span>
                         )}
                       </div>

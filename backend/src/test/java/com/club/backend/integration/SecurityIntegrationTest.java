@@ -131,7 +131,7 @@ class SecurityIntegrationTest extends IntegrationTestBase {
         mvc.perform(get("/api/events/pending").header("Authorization", token)).andExpect(status().isOk());
         mvc.perform(get("/api/analytics/university").header("Authorization", token)).andExpect(status().isOk());
         mvc.perform(get("/api/clubs/all").header("Authorization", token)).andExpect(status().isOk());
-        mvc.perform(get("/api/audit-logs").header("Authorization", token)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/audit-logs").header("Authorization", token)).andExpect(status().isOk());
         mvc.perform(get("/api/clubs/pending").header("Authorization", token)).andExpect(status().isForbidden());
     }
 

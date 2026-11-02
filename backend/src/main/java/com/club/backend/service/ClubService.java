@@ -104,6 +104,7 @@ public class ClubService {
                 .status(MembershipStatus.APPROVED)
                 .build();
         membershipRepository.save(presidentMembership);
+        auditLogService.log(creator, "CREATE_CLUB", "CLUB", club.getId(), club.getName());
 
         return ClubResponse.from(club);
     }
@@ -175,6 +176,11 @@ public class ClubService {
             notifySuperAdmins("\"" + updatedName + "\" changed its name or category and needs re-approval.");
         }
 
+        User actor = membership != null ? membership.getUser() : userRepository.findById(principal.getId()).orElse(null);
+        if (actor != null) {
+            auditLogService.log(actor, "UPDATE_CLUB", "CLUB", savedClub.getId(), savedClub.getName());
+        }
+
         return ClubResponse.from(savedClub);
     }
 
@@ -215,7 +221,8 @@ public class ClubService {
 
         User actor = userRepository.findById(principal.getId())
                 .orElseThrow(() -> ApiException.notFound("User not found"));
-        auditLogService.log(actor, approve ? "APPROVE_CLUB" : "REJECT_CLUB", "CLUB", club.getId(), club.getName());
+        String details = club.getName() + (!approve && !isBlank(reason) ? " - Reason: " + reason.trim() : "");
+        auditLogService.log(actor, approve ? "APPROVE_CLUB" : "REJECT_CLUB", "CLUB", club.getId(), details);
 
         String why = !approve && !isBlank(reason) ? " Reason: " + reason.trim() : "";
         notificationService.notify(club.getCreatedBy(), approve

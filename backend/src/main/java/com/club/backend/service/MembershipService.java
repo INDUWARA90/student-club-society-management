@@ -102,6 +102,8 @@ public class MembershipService {
 
         membership.setStatus(approve ? MembershipStatus.APPROVED : MembershipStatus.REJECTED);
         membership = membershipRepository.save(membership);
+        audit(principal, approve ? "APPROVE_MEMBERSHIP" : "REJECT_MEMBERSHIP", membership.getId(),
+                membership.getUser().getName() + " in " + membership.getClub().getName());
 
         if (!approve) {
             // The fee was collected up front, so a rejected applicant gets it back.

@@ -1,0 +1,397 @@
+================================================================================
+           STUDENT CLUB & SOCIETY MANAGEMENT SYSTEM - SECURITY FEATURES
+================================================================================
+Platform: Spring Boot 3.x (Java 21) | React 19 (Vite) | MySQL 8.4 | Docker
+Architecture: Decoupled RESTful API with Stateless JWT & Role-Based Access Control
+
+This document provides a comprehensive technical overview of all security
+mechanisms, defensive controls, and architectural protections engineered into
+the Student Club & Society Management Platform.
+================================================================================
+
+TABLE OF CONTENTS:
+--------------------------------------------------------------------------------
+1. Authentication & Session Security
+2. Authorization, Access Control & BOLA Defenses
+3. Rate Limiting & Anti-Brute-Force Architecture
+4. Dynamic Rotating QR Code & Anti-Proxy Attendance Engine
+5. Data Protection, Sanitization & Injection Defenses
+6. Digital Certificate Generation & Public Verification Portal
+7. System Audit Trail & Governance Logging
+8. Infrastructure, Container & DevSecOps Hardening
+9. Security Configuration & Production Checklist
+
+================================================================================
+1. AUTHENTICATION & SESSION SECURITY
+================================================================================
+
+1.1 Stateless JWT (JSON Web Token) Architecture
+    - The backend uses HMAC-SHA256 signed JSON Web Tokens for stateless
+      authentication. No server-side session cookies or HTTP session state are
+      held, eliminating session fixation vulnerabilities.
+    - Tokens encapsulate minimal user identity claims (email/subject, issue time,
+      and expiration time) signed using a cryptographically secure 256-bit+
+      secret key (`app.jwt.secret`).
+    - Every authenticated request is intercepted by `JwtAuthenticationFilter`
+      (`OncePerRequestFilter`), which validates token integrity, expiration,
+      and user account activation before populating the Spring SecurityContext.
+
+1.2 Instant Session Invalidation Upon Password Change (Token Revocation)
+    - Problem in standard JWTs: Stateless tokens usually remain valid until
+      expiration even if a user's password is stolen or changed.
+    - Solution implemented: In `JwtAuthenticationFilter`, every validated token
+      is checked against the user's `password_changed_at` timestamp in the database:
+      `issuedBeforePasswordChange(token, user)` compares the JWT's `iat` claim
+      against `user.getPasswordChangedAt().truncatedTo(ChronoUnit.SECONDS)`.
+    - Effect: When a student or administrator changes their password or resets it,
+      all existing sessions and leaked tokens are invalidated instantly across all
+      browsers and devices.
+
+1.3 Salted BCrypt Password Hashing
+    - User passwords are never stored or transmitted in plain text.
+    - Passwords are encrypted using Spring Security's `BCryptPasswordEncoder`
+      configured with a work factor (cost) of 10.
+    - Each hash incorporates a unique per-user cryptographically random 128-bit
+      salt, making rainbow table attacks and precomputed dictionary attacks
+      computationally infeasible.
+
+1.4 Anti-Account Enumeration Protection
+    - Registration endpoint (`POST /api/auth/register`) and Password Reset
+      endpoint (`POST /api/auth/forgot-password`) enforce neutral responses.
+    - When `REQUIRE_EMAIL_VERIFICATION=true` is enabled:
+      * Submitting an existing email or a non-existent email returns the identical
+        HTTP 202 Accepted status with the generic message:
+        "Check your email to finish creating your account."
+      * If the account already exists, an email is dispatched notifying the
+        registered owner ("You already have an account") with a login link.
+      * Attackers cannot determine whether a specific student or staff email exists
+        in the system by probing registration or password recovery forms.
+
+1.5 Email Verification Enforcement System
+    - Controlled via configuration switch `REQUIRE_EMAIL_VERIFICATION` (defaults
+      to `true` in production).
+    - Upon registration, an unguessable single-use verification token is generated
+      and emailed to the user (`EmailVerificationToken`).
+    - When email verification is mandatory:
+      * Unverified users can browse public directories and manage profile settings.
+      * Crucial state-changing operations—proposing a club, requesting club
+        membership, RSVPing to events, and submitting payments—are strictly
+        blocked with HTTP 403: "Please verify your email address first...".
+
+1.6 Secure Password Reset Workflow
+    - Password reset requests generate a high-entropy, time-limited token
+      (`PasswordResetToken`) valid for 1 hour.
+    - Reusing an already-consumed token is rejected immediately.
+    - Tokens are cryptographically bound to the target account and single-use.
+
+
+================================================================================
+2. AUTHORIZATION, ACCESS CONTROL & BOLA DEFENSES
+================================================================================
+
+2.1 Multi-Tier Role-Based Access Control (RBAC)
+    The system defines two orthogonal permission tiers: System-level Roles and
+    Club-level Committee Positions.
+
+    A. Global Roles (`Role` Enum):
+       - `SUPER_ADMIN`: Complete university oversight. Sanctions/rejects club
+         proposals, unarchives clubs, manages venues, manages all user accounts
+         and roles, and reviews system-wide audit logs.
+       - `FACULTY_ADVISOR`: University academic staff overseeing student societies.
+         Reviews and sanctions event proposals requiring faculty approval (e.g.,
+         ticketed/budgeted events), reviews university analytics and club finances.
+       - `STUDENT`: Base university member. Can browse approved clubs, join
+         clubs, RSVP, attend events, post comments, and propose new societies.
+
+    B. Club Executive Committee Positions (`MembershipPosition` Enum):
+       - `PRESIDENT`: Club executive head. Full club administration, approves
+         join requests, assigns committee roles, schedules events, uploads resources,
+         logs expenses, and archives the club.
+       - `VP`: Vice President. Event scheduling, resource uploads, announcement
+         broadcasting, and constitutional presidential succession rights.
+       - `SECRETARY`: Administrative officer. Member recordkeeping, CSV roster
+         exporting, and bulk member imports.
+       - `TREASURER`: Financial officer. Logs/edits expenses and accesses ledger.
+       - `MEMBER`: General club participant with member-only discussion rights.
+
+2.2 Method-Level Security Annotations
+    - Spring Security `@EnableMethodSecurity` is enabled across all controllers.
+    - Endpoints are protected with explicit annotations, e.g.:
+      * `@PreAuthorize("hasRole('SUPER_ADMIN')")`
+      * `@PreAuthorize("hasAnyRole('SUPER_ADMIN', 'FACULTY_ADVISOR')")`
+      * `@PreAuthorize("isAuthenticated()")`
+
+2.3 Broken Object Level Authorization (BOLA / IDOR) Defenses
+    - Problem in multi-tenant/multi-society systems: Attackers tamper with path
+      variables (e.g. replacing clubId or commentId in `/clubs/{id}/...`) to
+      access or delete records belonging to another club.
+    - Implemented Defenses:
+      * Cross-Club Resource Verification: When an officer performs an action
+        (e.g., deleting an announcement, reviewing a reported comment, or logging
+        an expense), the service layer validates that the target entity actually
+        belongs to the club specified in the URL path.
+      * Membership Verification: Validates that the executing user holds an
+        APPROVED executive position in that specific club—not merely being an
+        officer in an unrelated society.
+      * Cross-club moderation boundary: A club president attempting to delete a
+        comment or approve a membership in another club receives HTTP 404 / 403.
+
+2.4 Constitutional Presidential Succession & Split-Brain Prevention
+    - Exactly one PRESIDENT can exist per club.
+    - Database Unique Constraint: A database partial/unique index on
+      `memberships.president_club_id` guarantees at the database engine level that
+      no race condition or concurrent request can create duplicate Presidents.
+    - Self-Demotion Lock: A President cannot demote themselves to MEMBER without
+      first transferring the presidency to another member, preventing "orphaned"
+      clubs without leadership.
+    - Succession Workflow: If a President marks their profile as graduated, the
+      Vice President (or Secretary/Treasurer if no VP exists) is granted
+      the right to execute `claim-presidency`.
+
+
+================================================================================
+3. RATE LIMITING & ANTI-BRUTE-FORCE ARCHITECTURE
+================================================================================
+
+3.1 Sliding-Window IP Rate Limiting (`RateLimitFilter`)
+    - Protects unauthenticated, resource-intensive, and abuse-prone auth endpoints:
+      * `/api/auth/login`
+      * `/api/auth/register`
+      * `/api/auth/forgot-password`
+      * `/api/auth/reset-password`
+      * `/api/auth/verify-email`
+      * `/api/auth/resend-verification`
+    - Threshold: Enforces a maximum of 10 requests per 60-second window per
+      client IP address per endpoint.
+    - Exceeding the threshold triggers HTTP 429 Too Many Requests:
+      `{"message":"Too many requests, please try again later."}`.
+    - Memory leak prevention: The in-memory concurrent map purges expired time
+      windows automatically every minute.
+    - Benign routes (e.g. authenticated `/api/auth/me`, `/api/clubs`) are
+      deliberately excluded so legitimate users are never throttled during
+      normal browsing.
+
+3.2 IP Spoofing Protection (`trust-forwarded-headers`)
+    - If rate limiters blindly trust `X-Forwarded-For` request headers, an
+      attacker can bypass rate limiting simply by rotating dummy IP headers.
+    - The system defaults `app.trust-forwarded-headers=false`.
+    - In this mode, rate limiting strictly reads the physical TCP socket address.
+    - Only when running behind a trusted reverse proxy (e.g. Nginx, Cloudflare)
+      is `TRUST_FORWARDED_HEADERS=true` enabled to safely parse client IPs.
+
+3.3 Distributed Credential-Stuffing Defense (`LoginAttemptService`)
+    - IP rate limiting alone cannot stop distributed attacks coming from multiple
+      proxies or botnets.
+    - `LoginAttemptService` provides per-account brute-force protection:
+      * Tracks failed login attempts keyed by user email address.
+      * 5 consecutive failed login attempts trigger an automatic 15-minute lockout.
+      * While locked out, subsequent login attempts return HTTP 429:
+        "Too many failed sign-in attempts. Please try again in a few minutes."
+      * Unknown emails are tracked and locked in the exact same manner. An
+        attacker trying passwords against a non-existent email cannot tell whether
+        the email exists because the lockout behavior is identical.
+      * A successful login resets the failure counter immediately.
+
+
+================================================================================
+4. DYNAMIC ROTATING QR CODE & ANTI-PROXY ATTENDANCE ENGINE
+================================================================================
+
+4.1 The Proxy Attendance Vulnerability
+    In traditional systems, static QR codes or check-in links are photographed,
+    messaged to absent students, and redeemed from remote locations (proxy check-in).
+
+4.2 Dynamic HMAC-SHA256 Rolling Token Architecture (`CheckInTokenService`)
+    - QR codes generated by event organizers do not encode a static event ID.
+    - Tokens are cryptographically derived on-the-fly using HMAC-SHA256:
+      `Token = Base64Url( HMAC_SHA256( EventID + ":" + TimeWindow, Key ) )`
+    - Key derivation: A dedicated internal key derived from the master secret:
+      `key = ("checkin:" + secret).getBytes()`.
+    - Time-Windowing: Time is partitioned into 300-second (5-minute) epochs:
+      `currentWindow = epochSeconds / 300`.
+    - Rotation: The organizer's check-in display automatically polls and updates
+      the QR code every 2 minutes.
+    - Validity Window: The backend accepts tokens from the current window and the
+      immediate preceding window (5 to 10 minutes maximum lifespan). Any copied
+      screenshot or shared link expires within minutes.
+
+4.3 Constant-Time Comparison Defense
+    - Token verification executes `MessageDigest.isEqual(providedBytes, expectedBytes)`.
+    - This performs a constant-time byte-by-byte comparison, completely eliminating
+      side-channel timing attacks that attempt to reconstruct hashes byte-by-byte.
+
+4.4 Temporal & Capacity Verification Rules
+    - Attendance check-in is rejected if:
+      * The event has not yet started (blocks early check-in fraud).
+      * The event has already concluded (closed after event end time or 6h cutoff).
+      * The event was cancelled or is pending faculty approval.
+      * The user does not hold a confirmed GOING RSVP on a capacity-capped event
+        (walk-in check-in is permitted only on unlimited events).
+
+
+================================================================================
+5. DATA PROTECTION, SANITIZATION & INJECTION DEFENSES
+================================================================================
+
+5.1 SQL Injection (SQLi) Defense
+    - All database access is mediated through Spring Data JPA and Hibernate.
+    - Queries use parameterized statements and type-safe Object Relational Mapping.
+    - Dynamic search queries (e.g., event search, club catalog search) use
+      properly parameterized JPA queries:
+      Wildcard characters (`%` and `_`) in user inputs are escaped so queries
+      perform literal text matching rather than arbitrary pattern expansion.
+
+5.2 Cross-Site Scripting (XSS) Defense
+    - Frontend: Built with React 19. All user data rendered in JSX components is
+      automatically string-escaped by the virtual DOM prior to insertion into
+      the browser document.
+    - Backend: String lengths, request payloads, and user-submitted text (e.g.
+      announcement text, comments, reasons) are validated with strict bounds
+      (e.g., comments capped at 2,000 characters).
+
+5.3 CSV Formula Injection (Spreadsheet Injection / DDE) Mitigation
+    - Security risk: When exporting rosters or financial reports to CSV, a
+      malicious user whose display name begins with `=`, `+`, `-`, or `@` could
+      execute arbitrary shell commands or exfiltrate data via dynamic formulas
+      when opened in Microsoft Excel or Google Sheets.
+    - Defensive implementation: All CSV export generators sanitize text cells:
+      any cell whose first character is `=`, `+`, `-`, or `@` is prepended with
+      a single apostrophe (`'`), forcing spreadsheet software to treat the value
+      strictly as literal text. Commas and quotes are safely escaped.
+
+5.4 File Upload & Base64 Payload Hardening
+    - Base64 images (profile avatars, club logos, event banners) are checked
+      against strict size thresholds (~2 MB max).
+    - Club resource uploads are enforced up to 10 MB.
+    - MySQL schema columns use `LONGTEXT` / `BLOB` datatypes rather than narrow
+      text fields, preventing silent data truncation vulnerabilities.
+
+5.5 Cross-Origin Resource Sharing (CORS) Security
+    - Configured in `SecurityConfig.corsConfigurationSource()`.
+    - Allowed origins are strictly driven by environment variable
+      `app.cors.allowed-origins` (e.g., `https://club-society.vercel.app`).
+    - Allowed HTTP methods: `GET, POST, PUT, PATCH, DELETE, OPTIONS`.
+    - Exposed headers: Explicitly limited to `X-Total-Count` (for pagination).
+    - Wildcard origin reflection with credentials is disallowed.
+
+5.6 Cross-Site Request Forgery (CSRF) Mitigation
+    - CSRF protection is disabled (`csrf.disable()`) by deliberate design because
+      the application architecture is 100% stateless REST.
+    - Authentication credentials are submitted via the `Authorization: Bearer <JWT>`
+      header rather than ambient browser cookies. Because browsers never attach
+      custom Authorization headers automatically to cross-origin requests,
+      traditional CSRF attacks cannot succeed.
+
+
+================================================================================
+6. DIGITAL CERTIFICATE GENERATION & PUBLIC VERIFICATION PORTAL
+================================================================================
+
+6.1 Tamper-Resistant Server-Side PDF Generation
+    - Certificates of participation are compiled on the server using Apache PDFBox.
+    - Visual layout includes the recipient student's name, club name, issue date,
+      and an unguessable verification code.
+    - Character encoding safety: Non-Latin characters are handled safely without
+      throwing unhandled exceptions or corrupting PDF streams.
+
+6.2 Public Verification Portal (`/verify-certificate/{code}`)
+    - Every certificate carries a unique, high-entropy cryptographic tracking code.
+    - A public verification endpoint (`GET /api/certificates/verify/{code}`) allows
+      employers, faculty, or students to verify authenticity without requiring
+      login or credentials.
+    - Privacy protection: The verification endpoint reveals only verification status,
+      recipient name, club name, and issue date—no student IDs, emails, or personal
+      records are leaked. Bogus codes return a clean 404.
+
+6.3 Attendance Threshold Enforcement
+    - Certificates are issued only to APPROVED club members who meet or exceed
+      the club's attendance threshold (configurable per club, default: 3 events).
+    - Non-members or pending applicants cannot receive certificates regardless
+      of how many walk-in sessions they attend.
+
+
+================================================================================
+7. SYSTEM AUDIT TRAIL & GOVERNANCE LOGGING
+================================================================================
+
+7.1 Immutable Audit Log Engine (`AuditLog`)
+    - Critical administrative, financial, and membership state transitions are
+      recorded in the `audit_logs` database table.
+    - Audit fields:
+      * `id`: Unique identifier
+      * `actor_id` & `actor_email`: Identity of the performing user
+      * `action`: Action enum identifier
+      * `entity_type` & `entity_id`: Affected system resource
+      * `details`: JSON/text metadata detailing the before-and-after state
+      * `created_at`: Immutable UTC timestamp
+    - Logged Actions:
+      * `APPROVE_CLUB`, `REJECT_CLUB`, `ARCHIVE_CLUB`, `UNARCHIVE_CLUB`
+      * `APPROVE_EVENT`, `REJECT_EVENT`, `CANCEL_EVENT`, `DELETE_EVENT`
+      * `ASSIGN_POSITION`, `REMOVE_MEMBER`, `IMPORT_MEMBERS`, `CLAIM_PRESIDENCY`
+      * `LOG_EXPENSE`, `UPDATE_EXPENSE`, `DELETE_EXPENSE`
+      * `CREATE_USER`, `UPDATE_USER`, `DEACTIVATE_USER`, `ACTIVATE_USER`
+      * `DISMISS_COMMENT_REPORT`, `REMOVE_REPORTED_COMMENT`
+    - Read Access: Restricted strictly to `SUPER_ADMIN` and `FACULTY_ADVISOR`.
+
+7.2 Community Moderation & Reporting Workflow
+    - Club members can flag inappropriate comments on announcements or events.
+    - The submission stores a snapshot of the comment text and author details.
+    - The Club President receives an immediate in-app review notice.
+    - Resolving the report with `DELETE_COMMENT` purges the toxic content while
+      preserving the audit trail snapshot for administrative review.
+
+
+================================================================================
+8. INFRASTRUCTURE, CONTAINER & DEVSECOPS HARDENING
+================================================================================
+
+8.1 Unprivileged Non-Root Docker Containers
+    - Both backend and frontend Docker containers are configured to run as
+      unprivileged non-root service users (`spring` / `nginx`), restricting
+      container escape risks.
+
+8.2 Automated Vulnerability Scanning in CI/CD (Trivy)
+    - The GitHub Actions pipeline (`backend.yml`) runs Aquasec Trivy container
+      vulnerability scans against built Docker images before deployment.
+    - Severity policy: Any fixable **CRITICAL** CVE fails the pipeline build
+      immediately, blocking vulnerable images from reaching production.
+
+8.3 Zero Hardcoded Secrets & Environment Segregation
+    - All operational secrets (database passwords, JWT secret, mail credentials,
+      Vercel tokens, SSH keys) are decoupled from the codebase and supplied
+      exclusively via GitHub Secrets and environment variables.
+    - Production profile defaults `SEED_DEMO_DATA=false` to prevent sample
+      credentials (`password123`) from ever existing in production databases.
+
+8.4 Bootstrap Super Admin Safeguards
+    - First-time administration uses `BOOTSTRAP_ADMIN_EMAIL` and
+      `BOOTSTRAP_ADMIN_PASSWORD`.
+    - Enforces a minimum 12-character password complexity rule.
+    - Startup logic creates the initial admin only if zero Super Admins exist;
+      it is ignored thereafter to prevent account hijacking.
+
+8.5 Database Test Isolation & Safety Guards
+    - Integration tests run against a dedicated database (`club_management_test`).
+    - The test runner asserts that the database name contains `"test"` before
+      executing any wipe operations, making it impossible to accidentally wipe
+      development or production databases.
+
+
+================================================================================
+9. SECURITY CONFIGURATION & PRODUCTION CHECKLIST
+================================================================================
+
+When deploying the platform to production, ensure these environment variables
+are configured:
+
+[ ] JWT_SECRET: Minimum 256-bit cryptographically random string
+[ ] SEED_DEMO_DATA: Set to `false`
+[ ] REQUIRE_EMAIL_VERIFICATION: Set to `true`
+[ ] TRUST_FORWARDED_HEADERS: Set to `true` ONLY if behind a verified reverse proxy
+[ ] CORS_ALLOWED_ORIGINS: Set to exact frontend domain(s) (e.g. https://yourdomain.com)
+[ ] BOOTSTRAP_ADMIN_EMAIL & PASSWORD: Set once for first start, then remove
+[ ] JPA_DDL_AUTO: Keep as `validate` (Flyway manages all schema migrations)
+
+================================================================================
+END OF SECURITY FEATURES DOCUMENT
+================================================================================

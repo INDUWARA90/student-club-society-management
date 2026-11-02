@@ -1,0 +1,531 @@
+================================================================================
+ STUDENT CLUB & SOCIETY MANAGEMENT SYSTEM - TESTING, DEPLOYMENT & ALL SCENARIOS
+================================================================================
+Platform: Spring Boot 3.x (Java 21) | React 19 (Vite) | MySQL 8.4 | Docker
+CI/CD: GitHub Actions | Cloud Deployments: Render + Vercel / Azure VM
+
+This document contains a comprehensive, technical reference covering:
+PART 1: Testing Architecture, Test Suites & How to Run Tests
+PART 2: Deployment Architecture, Production Pipelines & Azure VM Setup
+PART 3: Exhaustive Operational Scenarios (All Functional, Security, and E2E Scenarios)
+================================================================================
+
+
+################################################################################
+PART 1: HOW TESTS ARE IN THIS APPLICATION
+################################################################################
+
+1.1 TESTING PHILOSOPHY & STRATEGY
+--------------------------------------------------------------------------------
+The application utilizes a rigorous, multi-layered testing pyramid comprising:
+- Service-level Unit Tests (with isolated mock dependencies)
+- Security Filter Unit Tests (testing tokens, lockouts, and rate limits)
+- Database-backed Integration Tests (running against a real MySQL 8.4 instance)
+- Concurrency & Race Condition Tests (verifying pessimistic locks and transactions)
+- Frontend Component & State Tests (React Testing Library, Vitest, Redux Toolkit)
+- Static Code Analysis, Linter & Security Audit Gates (oxlint, npm audit, Trivy)
+
+Total Test Volume:
+- Backend: ~315 Unit and Integration Tests (32 test classes)
+- Frontend: ~29 Unit and Component Test Suites
+
+1.2 BACKEND TESTING ARCHITECTURE (SPRING BOOT & JUNIT 5)
+--------------------------------------------------------------------------------
+Frameworks: JUnit 5 (Jupiter), Mockito, Spring Boot Test, Spring Security Test,
+AssertJ, Flyway, and MySQL 8.4 JDBC Driver.
+
+A. Service Layer Unit Tests:
+   Every business domain service is tested with Mockito mocks to verify business
+   rules, validations, calculations, and exception handling without database overhead:
+   - AuthServiceTest: Registration, login, password changes, token handling.
+   - ClubServiceTest: Club creation, categorization, approvals, rejections, archiving.
+   - MembershipServiceTest: Join rules, officer assignments, presidential transfer.
+   - EventServiceTest: Scheduling, validation, date constraints, cancellations.
+   - VenueServiceTest: Booking windows, conflict checks, utilization calculations.
+   - AttendanceServiceTest: Manual/QR check-in rules, start/end cutoff validation.
+   - CheckInTokenServiceTest: HMAC-SHA256 generation, time windows, constant-time match.
+   - PaymentServiceTest: Simulated payment recording, fee escrow, cascade refunds.
+   - CertificateServiceTest: Eligibility threshold calculation, PDF generation.
+   - ClubExpenseServiceTest: Officer permissions, ledger aggregation, budget vs spend.
+   - AnnouncementCommentServiceTest & EventCommentServiceTest: Comment threads.
+   - CommentReportServiceTest: Moderation workflows, dismiss/delete actions.
+   - NotificationServiceTest: Email preferences, daily digests, WebSocket triggers.
+   - UserAdminServiceTest: Super Admin account management, role elevation.
+   - AdvisorRequestServiceTest & AnalyticsServiceTest: Academic oversight.
+
+B. Security & Filter Unit Tests:
+   - JwtAuthenticationFilterTest: Tests token parsing, validation, and instant
+     revocation when `issuedAt` is before `password_changed_at`.
+   - LoginAttemptServiceTest: Tests 5-attempt brute-force counter, 15-minute
+     lockout, unknown email locking, and cache cleanup.
+   - RateLimitFilterTest: Tests sliding-window counter (10 req/min), HTTP 429
+     trigger, and trusted vs spoofed `X-Forwarded-For` headers.
+
+C. Real-Database Integration Tests (`*IntegrationTest.java`):
+   Unlike simple in-memory H2 tests that hide MySQL-specific bugs, backend
+   integration tests execute against a real MySQL 8.4 database:
+   - `IntegrationTestBase`: Base class configuring the Spring Boot Test context.
+     * Database Safety Rail: The base test runner inspects the target database URL.
+       If the database name does NOT contain the substring "test", it immediately
+       aborts to prevent touching development or production databases!
+     * Wipes and resets the test database before each test run.
+   - `WorkflowIntegrationTest`: Exercises multi-step end-to-end HTTP scenarios
+     across MockMvc (registration -> approval -> event creation -> payment -> attendance).
+   - `ConcurrencyIntegrationTest`: Spawns multi-threaded worker pools to stress-test
+     concurrency:
+     * 4 simultaneous RSVPs racing for the 1 remaining seat in an event (verifies
+       pessimistic row locking `@Lock(LockModeType.PESSIMISTIC_WRITE)`).
+     * Simultaneous presidential handoffs racing to ensure exactly 1 President exists.
+   - `CatalogQueryIntegrationTest`: Tests SQL pagination, filtering, and `X-Total-Count`.
+   - `SecurityIntegrationTest`: Full HTTP filter chain authorization sweep.
+   - `UserAdminIntegrationTest`: Tests administrative user lifecycle.
+   - `VerifiedRegistrationIntegrationTest`: Tests strict email verification mode.
+
+1.3 FRONTEND TESTING ARCHITECTURE (VITEST & REACT TESTING LIBRARY)
+--------------------------------------------------------------------------------
+Frameworks: Vitest, React Testing Library, JSDOM, Redux Toolkit, React Router DOM.
+Environment: `setupTests.js` initializes mock DOM APIs, matchers, and store providers.
+
+Test Suites:
+- Auth & State: `LoginPage.test.jsx`, `RegisterPage.test.jsx`, `authSlice.test.js`
+- Club Management: `ClubsPage.test.jsx`, `ClubCard.test.jsx`, `ClubDetailPage.test.jsx`,
+  `ClubSettingsPage.test.jsx`, `CreateClubModal.test.jsx`, `AllClubsOverviewPage.test.jsx`,
+  `MemberDirectoryPage.test.jsx`, `ClubResources.test.jsx`
+- Event & Attendance: `EventCard.test.jsx`, `EventDetailPage.test.jsx`,
+  `CreateEventModal.test.jsx`, `EventCheckInPage.test.jsx`, `PendingEventsPage.test.jsx`,
+  `MyParticipationPage.test.jsx`
+- Financial Ledger: `BudgetFinancePage.test.jsx`
+- Certificates: `CertificatesPage.test.jsx`, `VerifyCertificatePage.test.jsx`
+- Administration: `UserManagementPage.test.jsx`, `AuditLogPage.test.jsx`,
+  `UniversityStatsPage.test.jsx`
+- Global Controls: `NotificationsPage.test.jsx`, `DashboardPage.test.jsx`,
+  `Modal.test.jsx`, `StatCard.test.jsx`, `charts.test.jsx`
+
+1.4 HOW TO EXECUTE TESTS LOCALLY
+--------------------------------------------------------------------------------
+Backend Tests (Requires a running local MySQL instance):
+  cd backend
+  # Run all unit tests (fast, no DB required):
+  ./mvnw test
+  # Run all unit AND integration tests against MySQL (creates club_management_test):
+  DB_USERNAME=root DB_PASSWORD=your_password ./mvnw verify
+
+Frontend Tests & Audits:
+  cd frontend
+  # Run fast linter:
+  npm run lint
+  # Run all Vitest suites:
+  npm test
+  # Run with coverage:
+  npm run test:coverage
+  # Run production build check:
+  npm run build
+  # Run dependency vulnerability audit:
+  npm audit
+
+
+################################################################################
+PART 2: HOW DEPLOYMENT WAS DONE / DEPLOYMENT ARCHITECTURE
+################################################################################
+
+The system supports two production deployment architectures:
+1. Cloud-Native Split Architecture (Render API + Vercel SPA + TiDB/Aiven MySQL)
+2. Azure Virtual Machine Container Stack (Docker Compose + Automated GitHub Actions CI/CD)
+
+--------------------------------------------------------------------------------
+2.1 CLOUD-NATIVE SPLIT ARCHITECTURE (RENDER + VERCEL)
+--------------------------------------------------------------------------------
+A decoupled architecture where frontend and backend scale independently:
+
+```
+[ Developer Git Push ]
+        |
+        +---> .github/workflows/backend.yml (Changes in backend/**)
+        |       1. Starts MySQL 8.4 service container in GitHub Actions runner.
+        |       2. Runs Flyway migrations from V1 to V4.
+        |       3. Executes all ~315 unit & integration tests (`./mvnw verify`).
+        |       4. Builds Docker container stamped with GIT_SHA commit hash.
+        |       5. Pushes container to GitHub Container Registry (ghcr.io).
+        |       6. Runs Aquasec Trivy security scan (fails on CRITICAL CVEs).
+        |       7. Calls Render Deploy Webhook for the exact commit.
+        |       8. Polls GET /api/health until status="UP" and version=commit.
+        |       9. Executes live smoke tests (verifies 401s on private, 200 on public).
+        |
+        +---> .github/workflows/frontend.yml (Changes in frontend/**)
+                1. Runs `oxlint`, Vitest test suite, and `npm audit`.
+                2. On Pull Requests: Deploys preview instance to Vercel and comments URL.
+                3. On Push to Main: Compiles production bundle with VITE_API_BASE_URL.
+                4. Deploys to Vercel production edge CDN.
+                5. Runs live smoke test verifying SPA routing and deep links.
+```
+
+Zero-Downtime & Rollback Safeguard:
+- Render executes health checks against `GET /api/health`.
+- If a new backend build fails to connect to the database or fails migrations,
+  Render refuses to route traffic to the container and continues serving the
+  previous working container.
+
+--------------------------------------------------------------------------------
+2.2 AZURE VIRTUAL MACHINE PRODUCTION STACK (DOCKER COMPOSE)
+--------------------------------------------------------------------------------
+For self-hosting on a single cloud server, the entire platform is deployed to an
+Azure Virtual Machine managed by Docker Compose.
+
+VM Topology:
+- Azure VM: Ubuntu Server 22.04 LTS (Standard_B2s, 2 vCPUs, 4GB RAM)
+- Swap Space: 2GB swapfile configured to prevent OOM during container start.
+- Azure Network Security Group (NSG) Rules:
+  * Port 22 (SSH): Management
+  * Port 80 / 8080 (HTTP): Frontend Nginx container
+  * Port 5000 (HTTP): Backend API container
+  * Port 443 (HTTPS): SSL / TLS
+
+Docker Compose Production Stack (`docker-compose.prod.yml`):
+- `backend`: Spring Boot 3 container running on Java 21 non-root image.
+  Configured with JVM memory limits: `-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0`.
+- `frontend`: High-performance Nginx Alpine container serving optimized Vite SPA dist.
+  Configured with SPA rewrite rules (`try_files $uri $uri/ /index.html =404;`).
+- `mysql`: Official MySQL 8.4 LTS image with persistent Docker volume storage (`mysql_data`).
+- `backup`: Alpine container running an automated backup cron service:
+  * Executes daily automated database dumps (`mysqldump | gzip`).
+  * Stores timestamped backups in `/backups/club_management-<timestamp>.sql.gz`.
+  * Retention policy: Prunes old dumps, retaining the newest `BACKUP_KEEP=7` backups.
+  * Restore script (`scripts/restore.sh`) enables one-command database recovery.
+
+Automated Azure VM CI/CD (`.github/workflows/deploy-azure-vm.yml`):
+- Triggered automatically on push to `main`.
+- Step 1 (Build & Push): GitHub cloud runner builds multi-stage Docker containers
+  for frontend and backend, tagging them with commit SHA and `:latest`, then pushes
+  to GitHub Container Registry (`ghcr.io`).
+- Step 2 (SSH Deployment): Using `appleboy/ssh-action`, the workflow connects via SSH
+  to the Azure VM, authenticates to GHCR, pulls the newly built containers, runs
+  `docker compose -f docker-compose.prod.yml up -d`, and polls `/api/health`
+  until the service is fully operational.
+
+--------------------------------------------------------------------------------
+2.3 DATABASE MIGRATIONS ENGINE (FLYWAY)
+--------------------------------------------------------------------------------
+Schema evolution is 100% automated via Flyway migrations (`backend/src/main/resources/db/migration`):
+- `V1__init.sql`: Core baseline tables (users, clubs, memberships, events, attendance).
+- `V2__expenses_and_feedback.sql`: Financial ledger, expense tracking, star ratings.
+- `V3__phase3_tables.sql`: Venues, resources, comment moderation, email tokens.
+- `V4__add_active_to_users.sql`: User activation/deactivation flags for governance.
+
+Rules:
+- Flyway checks migration checksums at startup. Editing an already-applied migration
+  file causes Flyway to fail loudly, preventing silent schema drift.
+- JPA DDL Auto is locked to `validate` in production, ensuring Hibernate never alters
+  tables behind Flyway's back.
+
+--------------------------------------------------------------------------------
+2.4 KEY CONFIGURATION ENVIRONMENT VARIABLES
+--------------------------------------------------------------------------------
+- `DATABASE_URL`: JDBC URL (e.g., `jdbc:mysql://host:3306/club_management?useSSL=true`)
+- `DATABASE_USERNAME` & `DATABASE_PASSWORD`: MySQL credentials
+- `JWT_SECRET`: 256-bit+ secret key for HMAC-SHA256 signing
+- `SEED_DEMO_DATA`: `true` for local dev demo; `false` in production
+- `REQUIRE_EMAIL_VERIFICATION`: `true` enforces email verification before actions
+- `BOOTSTRAP_ADMIN_EMAIL` & `PASSWORD`: Creates initial Super Admin on first run
+- `TRUST_FORWARDED_HEADERS`: `true` behind proxy; `false` standalone
+- `CORS_ALLOWED_ORIGINS`: Comma-separated frontend domains
+- `VITE_API_BASE_URL`: Public API endpoint used by React SPA
+
+
+################################################################################
+PART 3: ALL OPERATIONAL SCENARIOS THAT NEED TO BE KNOWN
+################################################################################
+
+Below is the complete, exhaustive catalog of all test, functional, edge-case,
+and cross-role scenarios across the system.
+
+--------------------------------------------------------------------------------
+SECTION 1: AUTHENTICATION & USER ACCOUNT SCENARIOS
+--------------------------------------------------------------------------------
+1.1  Register New Student: Fresh registration creates account with role `STUDENT`,
+     `email_verified=false`, and dispatches verification email.
+1.2  Duplicate Email Registration: Re-registering existing email returns neutral
+     HTTP 202 without creating duplicate, dispatching "already registered" alert.
+1.3  Login Before Email Verification: Login succeeds; if verification is required,
+     state-changing actions (joining, RSVP, payments) return 403 until verified.
+1.4  Verify Email: Submitting valid token sets `email_verified=true`.
+1.5  Resend Verification: Logged-in unverified user triggers fresh token email.
+1.6  Expired/Invalid Verification Token: Using expired or altered token returns 400.
+1.7  Login Success: Correct email/password returns valid JWT and profile.
+1.8  Login Wrong Password: Bad password returns HTTP 401 Unauthorized.
+1.9  Login Unknown Email: Non-existent email returns neutral 401 (no user leak).
+1.10 Forgot Password (Known Email): Submitting registered email sends reset link.
+1.11 Forgot Password (Unknown Email): Returns neutral 200/202 (anti-enumeration).
+1.12 Reset Password: Using valid reset token sets new password; old password fails.
+1.13 Reset Password Reused Token: Re-submitting already consumed token returns 400.
+1.14 Get Current User: `GET /api/auth/me` returns authenticated user profile.
+1.15 Unauthenticated Profile Request: `GET /api/auth/me` with no token returns 401.
+1.16 Update Profile: Changing name updates all club rosters, comments, and posts.
+1.17 Update Profile Image: Uploading base64 image persists and displays.
+1.18 Change Password: Providing valid current password + new password updates hash.
+1.19 Change Password (Wrong Current): Fails with HTTP 400/401.
+1.20 Change Email: Changing email triggers re-verification flow.
+1.21 Token Tampering/Expiry: Altered or expired JWT returns 401 on protected routes.
+1.22 CORS Preflight: Browser OPTIONS request returns correct allowed origin headers.
+1.23 Dynamic CORS Configuration: Allowed origins strictly match configured env.
+1.24 Sliding-Window Rate Limiting: Sending >10 requests/minute to auth endpoints
+     from same IP returns HTTP 429 Too Many Requests.
+1.25 Rate Limit Isolation: Tripping auth rate limiter does NOT block browsing
+     endpoints or authenticated profile routes.
+1.26 Rate Limit Expiration: Waiting 60 seconds clears window, allowing requests.
+1.27 Account Brute-Force Lockout: 5 consecutive failed logins lock account for
+     15 minutes across all IPs. Unknown emails lock identically.
+1.28 Session Invalidation on Password Change: Changing password in Browser A
+     causes Browser B's next request to return 401 (JWT instantly revoked).
+1.29 Session Invalidation on Password Reset: Resetting password via email link
+     revokes all active browser sessions immediately.
+1.30 Email Notification Opt-Out: Unticking "Email me my notifications" stops
+     outgoing emails while keeping in-app bell notifications active.
+1.31 Rate Limiter Spoof Defense: Spoofed `X-Forwarded-For` headers are ignored
+     when `TRUST_FORWARDED_HEADERS=false`.
+1.32 Error Sanitization: Malformed requests return clean 400/500 messages;
+     internal Java stack traces and SQL syntax are never leaked.
+1.33 Unverified User Gating: With email verification required, unverified student
+     gets 403 on join club, RSVP, pay, or propose club.
+1.34 Anti-Enumeration Identical Responses: Both registered and new emails return
+     exact same 202 response on signup.
+1.35 Daily Notification Digest: Subscribing to daily digest batches notifications
+     into a single 18:00 UTC daily email.
+
+--------------------------------------------------------------------------------
+SECTION 2: CLUB & SOCIETY GOVERNANCE SCENARIOS
+--------------------------------------------------------------------------------
+2.1  Create Club Proposal: Student proposes society; status becomes `PENDING`,
+     creator is assigned `PRESIDENT`. Invisible in public directory.
+2.2  List Approved Clubs: `GET /api/clubs` returns only `APPROVED` active clubs.
+2.3  Filter Clubs by Category: Filtering returns matching category clubs.
+2.4  View Club Details: Returns detailed metadata for approved clubs.
+2.5  Update Club Info (Non-Identity): President updates description/logo; club
+     remains `APPROVED`.
+2.6  Rename/Recategorize Club: President renaming or recategorizing an approved club
+     resets status to `PENDING` requiring Super Admin re-approval.
+2.7  Unauthorized Club Update: Non-president updating club returns 403 Forbidden.
+2.8  List Pending Clubs (Admin): Super Admin can retrieve pending club queue.
+2.9  List Pending Clubs (Non-Admin): Students/Advisors get 403 Forbidden.
+2.10 Approve Club: Super Admin approves club; status becomes `APPROVED`, public
+     listing appears, President is notified.
+2.11 Reject Club: Super Admin rejects club with reason; creator is notified.
+2.12 Reject Without Admin Rights: Non-superadmin approving/rejecting gets 403.
+2.13 Duplicate Club Name: Proposing or renaming club to existing name returns 409.
+2.14 Fee & Threshold Bounds: Negative fees or invalid thresholds return 400.
+2.15 Set Fee & Certificate Threshold: President configures membership fee and
+     attendance threshold without requiring club re-approval.
+2.16 Admin Proposal Notifications: Super Admins receive notifications when new
+     societies are proposed.
+2.17 Rejection Reason Persistence: Super Admin rejection reason is stored and
+     displayed to the club creator.
+2.18 Archive Club: President or Super Admin archives club. Upcoming events are
+     cancelled, fees refunded, members notified, and joining blocked.
+2.19 Archive Permissions: Plain members cannot archive clubs (403).
+2.20 Unarchive Club: Super Admin unarchives club; restored to public browse.
+2.21 Club Catalog Pagination & Search: Database-driven pagination returns page
+     subset with `X-Total-Count` header.
+
+--------------------------------------------------------------------------------
+SECTION 3: MEMBERSHIPS & COMMITTEE ROLES SCENARIOS
+--------------------------------------------------------------------------------
+3.1  Join Club (Open vs Approval): Open clubs approve immediately; approval-required
+     clubs create `PENDING` request and notify President.
+3.2  Duplicate Join Request: Joining a club where already member/pending returns 409.
+3.3  List Pending Memberships: President reviews pending join queue.
+3.4  Non-President Pending List: Non-officers accessing queue get 403.
+3.5  Approve Membership: President approves student; status becomes `APPROVED`.
+3.6  Reject Membership: President rejects student; status becomes rejected.
+3.7  Unauthorized Membership Review: Non-president approving/rejecting gets 403.
+3.8  Leave Club: Approved member can voluntarily leave society.
+3.9  President Cannot Leave: President trying to leave without reassigning role
+     is blocked with 400.
+3.10 List Roster: Returns approved members and assigned committee positions.
+3.11 Export Members CSV: Restricted to President and Secretary; exports roster.
+3.12 Export CSV Formula Injection Defense: Names starting with `=`, `+`, `-`, `@`
+     are sanitized with apostrophe prefix.
+3.13 Bulk Import Members: President/Secretary imports member emails via CSV/list.
+3.14 Assign Committee Position: President elevates member to VP, Secretary, or Treasurer.
+3.15 Presidential Transfer: President assigns PRESIDENT to another member; old
+     president becomes MEMBER and immediately loses executive authority.
+3.16 Concurrent Presidential Hand-Off: Two simultaneous transfer requests resolve
+     safely via DB unique index; exactly one President exists.
+3.17 Cross-Club Elevation BOLA Defense: President of Club A attempting to approve
+     members or assign roles in Club B gets 403 Forbidden.
+3.18 Re-Apply After Rejection: Rejected applicants can submit a new join request.
+3.19 Fee-Gated Membership: For clubs with fees, joining requires successful payment.
+3.20 Membership Fee Refund on Rejection: If President rejects paid join request,
+     payment is automatically refunded.
+3.21 Remove Member: President removes member; membership deleted and user notified.
+3.22 President Cannot Demote Self: President cannot change self to MEMBER without transfer.
+3.23 Succession Upon Graduation: If President marks profile as graduated, Vice
+     President can claim the presidency via `claim-presidency`.
+3.24 Succession Privilege Hierarchy: VP has first right to claim presidency;
+     Secretary/Treasurer can claim only if no VP exists.
+
+--------------------------------------------------------------------------------
+SECTION 4: CLUB ANNOUNCEMENTS & DISCUSSION SCENARIOS
+--------------------------------------------------------------------------------
+4.1  Post Club Announcement: Officers (President, VP, Secretary, Treasurer) post
+     announcements to member feed.
+4.2  Plain Member Announcement Guard: General members posting announcements get 403.
+4.3  List Announcements: Approved members view chronological announcement feed.
+4.4  Delete Announcement: Announcement author or President can delete announcement.
+4.5  Unauthorized Announcement Deletion: Other officers cannot delete peers' posts.
+4.6  Post Announcement Comment: Approved club members can post comments.
+4.7  Non-Member Comment Guard: Students not in club cannot comment (403).
+4.8  Delete Own Comment: Comment author can delete their own comment.
+4.9  Presidential Moderation: Club President can delete any comment in their club.
+4.10 Cross-Club Comment Deletion BOLA Defense: President of Club A attempting to
+     delete comments in Club B gets 404/403.
+4.11 Event Discussion Threads: Members can post and discuss within event threads.
+4.12 Comment Text Length Limits: Comments over 2,000 characters are rejected (400).
+
+--------------------------------------------------------------------------------
+SECTION 5: EVENT MANAGEMENT & VENUE BOOKING SCENARIOS
+--------------------------------------------------------------------------------
+5.1  Create Free Event (No Faculty Approval): Created with status `NOT_REQUIRED`,
+     immediately visible in public event catalog.
+5.2  Create Paid/Budgeted Event: Requires Faculty Advisor approval; created as `PENDING`.
+5.3  Plain Member Event Guard: General members cannot create events (403).
+5.4  List Published Events: Public directory displays only approved events.
+5.5  Single Event Privacy: Unpublished `PENDING` events return 404 to non-officers.
+5.6  Update Event: Officers update event details (title, description, venue).
+5.7  Event Date in the Past: Creating event with past start date returns 400.
+5.8  Faculty Advisor Approval: Faculty Advisor reviews pending queue and approves.
+5.9  Faculty Advisor Rejection: Advisor rejects event with mandatory feedback reason.
+5.10 Resubmit Rejected Event: Editing a rejected event resets status to `PENDING`.
+5.11 Fee Lock Enforcement: Event fee cannot be altered once students have paid or RSVP'd.
+5.12 Venue Booking Collision Detection: Booking a venue already occupied by another
+     event in overlapping time window returns HTTP 409 Conflict naming conflict.
+5.13 Back-to-Back Venue Booking: Booking ending exactly when another starts succeeds.
+5.14 Rejected Event Releases Venue: Rejecting an event frees up its booked venue slot.
+5.15 Next-Available-Slot Suggestion: Algorithm calculates next available booking
+     slot when desired venue time is occupied.
+5.16 Venue Utilization Summary: Super Admin reviews venue usage and busiest rooms.
+5.17 Cancel Event: Officer cancels event; venue slot freed, attendees notified,
+     and all paid fees refunded automatically.
+5.18 Cancelled Event Locks: Cancelled events cannot be edited, RSVP'd, or checked in.
+5.19 Download iCalendar (.ics): Users export RFC 5545 compliant `.ics` calendar file.
+5.20 Event Budget Tracking: Ledger tracks per-event allocated budget vs actual spend.
+
+--------------------------------------------------------------------------------
+SECTION 6: RSVPS, WAITLIST & CAPACITY SCENARIOS
+--------------------------------------------------------------------------------
+6.1  RSVP to Event: Student RSVPs; status becomes `GOING`.
+6.2  Duplicate RSVP: Submitting second RSVP returns 409 Conflict.
+6.3  Capacity Limit & Waitlist: When event capacity is reached, new RSVPs are
+     automatically placed on waitlist with sequential `waitlist_order`.
+6.4  Waitlist Automatic Promotion: When a `GOING` attendee cancels RSVP, the #1
+     waitlisted student is promoted to `GOING` in real-time over WebSocket.
+6.5  Contiguous Waitlist Order: If a middle waitlist member leaves, remaining
+     members shift to maintain contiguous order (no gaps).
+6.6  Concurrent RSVP Race Condition: 4 simultaneous requests for 1 remaining seat
+     resolve via pessimistic DB row locking: exactly 1 GOING, 3 WAITLISTED.
+6.7  Paid Event RSVP Prerequisite: Fee events require successful payment before
+     RSVP is accepted.
+6.8  Refund on RSVP Cancellation: Cancelling paid RSVP before event starts triggers
+     automatic payment refund.
+
+--------------------------------------------------------------------------------
+SECTION 7: DYNAMIC QR CODE & ATTENDANCE SCENARIOS
+--------------------------------------------------------------------------------
+7.1  Dynamic Rotating QR Code: Officer check-in screen displays QR code encoding
+     a 5-minute rolling HMAC-SHA256 token.
+7.2  QR Code Auto-Refresh: Organizer display polls and refreshes QR every 2 minutes.
+7.3  Successful QR Check-In: Student scans QR during event; attendance recorded
+     with method `QR`.
+7.4  Token Expiration (Anti-Proxy): Scanning a captured QR code or screenshot older
+     than 10 minutes returns HTTP 403 Forbidden.
+7.5  Early Check-In Guard: Checking in before event start time returns 400.
+7.6  Late Check-In Guard: Checking in after event end time returns 400 (closed).
+7.7  RSVP-Only Enforcement: On capacity-capped events, check-in requires confirmed
+     GOING RSVP; unauthorized walk-ins are rejected.
+7.8  Manual Attendance Fallback: Club officers can manually mark attendance.
+7.9  Duplicate Attendance Guard: Scanning QR or marking attendance twice returns 409.
+7.10 Attendance Privacy: Students only see their own attendance history; officers
+     and staff can view full attendee rosters.
+
+--------------------------------------------------------------------------------
+SECTION 8: FINANCIAL MANAGEMENT & SIMULATED PAYMENTS SCENARIOS
+--------------------------------------------------------------------------------
+8.1  Pay Event Fee: Student pays simulated event fee; payment status `SUCCESS`.
+8.2  Client Underpayment Tampering Guard: Backend ignores client-sent `amount`
+     and strictly bills the exact fee configured in database.
+8.3  Pay Membership Fee: Student pays club joining fee; recorded in club ledger.
+8.4  Duplicate Payment Guard: Paying for the same event twice returns 409 Conflict.
+8.5  Club Ledger Income Tracking: All event and membership payments credit the
+     club's ledger `totalIncome`.
+8.6  Cascade Refund on Event Cancellation: Cancelling an event issues refunds to
+     all paying participants and decrements ledger income.
+8.7  Log Club Expense: President/Treasurer logs expense with amount, category, date.
+8.8  Unauthorized Expense Logging: VP, Secretary, or plain members cannot log expenses.
+8.9  Delete Expense & Audit Trail: President deletes expense; ledger recalculates
+     and `DELETE_EXPENSE` audit record is created.
+
+--------------------------------------------------------------------------------
+SECTION 9: CERTIFICATES OF PARTICIPATION SCENARIOS
+--------------------------------------------------------------------------------
+9.1  Threshold Automatic Issuance: Reaching club attendance threshold (e.g. 3 events)
+     issues digital Certificate of Participation to approved member.
+9.2  Member Only Requirement: Walk-in non-members meeting attendance count do NOT
+     receive certificates until approved as members.
+9.3  Download Certificate PDF: Student downloads tamper-proof PDF generated via PDFBox.
+9.4  Public Certificate Verification: Anyone visits `/verify-certificate/{code}`
+     without login; authenticates genuine credentials or returns 404 for bogus codes.
+9.5  Bulk Certificate Issuance: Officers trigger bulk sweep on past events to issue
+     certificates to all newly qualified attendees.
+9.6  Bulk Issuance Idempotency: Re-running bulk issue creates 0 duplicate certificates.
+
+--------------------------------------------------------------------------------
+SECTION 10: COMMENT MODERATION & REPORTING SCENARIOS
+--------------------------------------------------------------------------------
+10.1 Report Inappropriate Comment: Member flags comment; reason stored, President notified.
+10.2 Self-Reporting Block: Members cannot report their own comments (400).
+10.3 Review Queue: President inspects flagged comments queue.
+10.4 Dismiss Report: President dismisses flag; comment remains, report marked `DISMISSED`.
+10.5 Delete Reported Comment: President deletes comment; comment removed and all
+     related open reports marked `ACTION_TAKEN`. Audit snapshot preserved.
+
+--------------------------------------------------------------------------------
+SECTION 11: USER & ROLE ADMINISTRATION SCENARIOS (SUPER ADMIN)
+--------------------------------------------------------------------------------
+11.1 Access User Management Directory: Super Admin accesses `/admin/users`; other
+     roles receive 403 Forbidden.
+11.2 Elevate User Role: Admin changes student role to `FACULTY_ADVISOR` or `SUPER_ADMIN`.
+11.3 Self-Demotion Lock: Super Admin cannot demote or deactivate their own account.
+11.4 Last Admin Protection: System blocks demoting or deactivating the last active
+     Super Admin in the university.
+11.5 Deactivate User Account: Admin deactivates abusive user; user's active session
+     is rejected (401) and subsequent logins blocked.
+11.6 Reactivate User Account: Admin reactivates account; user can sign in normally.
+
+--------------------------------------------------------------------------------
+SECTION 12: CROSS-ROLE END-TO-END SYSTEM WORKFLOWS (E2E-1 to E2E-19)
+--------------------------------------------------------------------------------
+E2E-1:  Full Club Lifecycle: Student proposes -> Super Admin approves -> Club active.
+E2E-2:  Membership Journey: Dave requests join -> Alice approves -> Dave attends events.
+E2E-3:  Paid Event Lifecycle: Officer proposes -> Advisor approves -> Student pays &
+        RSVPs -> Student checks in -> Leaves feedback -> Ledger reflects income.
+E2E-4:  Live Waitlist Promotion: Capacity-1 event; Bob cancels; Carol promoted live.
+E2E-5:  Officer Handoff: Alice transfers President role to Bob; Alice demoted to Member.
+E2E-6:  Club Financial Management: Income and expenses tracked; ledger verified.
+E2E-7:  Discussion Moderation: Member posts comment; President moderates.
+E2E-8:  Administrative Rejections: Super Admin rejects club proposal with feedback.
+E2E-9:  Cross-Club BOLA Boundary: President Dave cannot delete comments in Alice's club.
+E2E-10: Venue Collision Resolution: Two clubs book same hall; second gets 409 conflict,
+        adjusts time, both bookings appear on university calendar.
+E2E-11: Bulk Certificate Distribution: Officer runs bulk sweep after event.
+E2E-12: Resource Library & Constitution: Officer uploads PDF; members download.
+E2E-13: Refund Cascade: Paid event cancelled; all attendee fees refunded.
+E2E-14: Fee-Gated Club Join with Rejection Refund: Paid membership application
+        rejected; user refunded; re-pays and gets approved.
+E2E-15: Society Decommissioning: President archives club; upcoming events cancelled,
+        fees refunded, club delisted from public browse.
+E2E-16: Anti-Proxy QR Verification: Attempting check-in with expired token fails.
+E2E-17: Comment Moderation Queue: Inappropriate comment reported, reviewed, deleted.
+E2E-18: Constitutional Succession: Graduated President succession claimed by VP.
+E2E-19: First Production Release & Rollback: Bootstrapping admin, zero-downtime deploy.
+
+================================================================================
+END OF TESTING, DEPLOYMENT & SCENARIOS DOCUMENT
+================================================================================

@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ChevronDown,
   ClipboardCheck,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -26,13 +27,13 @@ import api from '../api/axios'
 import { logout, refreshCurrentUser, resendVerification } from '../features/auth/authSlice'
 import { toggleTheme } from '../features/theme/themeSlice'
 import NotificationBell from './NotificationBell'
+import ContactAdvisorModal from '../features/advisor/ContactAdvisorModal'
 import { useToast } from './ToastProvider'
 
 const OFFICER_POSITIONS = ['PRESIDENT', 'VP', 'SECRETARY', 'TREASURER']
 
 const ADMIN_LINKS = [
   { to: '/admin/users', label: 'Users', icon: UserCog },
-  { to: '/admin/pending-clubs', label: 'Pending clubs', icon: ClipboardCheck },
   { to: '/admin/venues', label: 'Venues', icon: MapPin },
   { to: '/admin/audit-log', label: 'Audit log', icon: ScrollText },
 ]
@@ -141,6 +142,7 @@ function AppLayout() {
   const [dismissedBanner, setDismissedBanner] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [memberships, setMemberships] = useState([])
+  const [showContactAdvisorModal, setShowContactAdvisorModal] = useState(false)
   const userMenuRef = useRef(null)
 
   useEffect(() => {
@@ -338,6 +340,18 @@ function AppLayout() {
           {roleLinks && <SidebarSection title={roleTitle} links={roleLinks} />}
         </nav>
 
+        {/* Contact Advisor Action Pill */}
+        <div className="mt-3 px-1">
+          <button
+            type="button"
+            onClick={() => setShowContactAdvisorModal(true)}
+            className="flex w-full items-center gap-2.5 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3.5 py-2.5 text-xs font-semibold text-indigo-700 transition-all hover:bg-indigo-100 hover:text-indigo-900 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60 shadow-xs"
+          >
+            <GraduationCap className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+            <span>Contact Advisor</span>
+          </button>
+        </div>
+
         {/* User Footer Profile */}
         <div className="mt-4 border-t border-slate-100 dark:border-slate-800/80 pt-4">
           <Link
@@ -507,6 +521,13 @@ function AppLayout() {
           )
         })}
       </nav>
+
+      {showContactAdvisorModal && (
+        <ContactAdvisorModal
+          isOpen={showContactAdvisorModal}
+          onClose={() => setShowContactAdvisorModal(false)}
+        />
+      )}
     </div>
   )
 }

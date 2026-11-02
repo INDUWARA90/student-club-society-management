@@ -361,4 +361,35 @@ class WorkflowIntegrationTest extends IntegrationTestBase {
         mvc.perform(post("/api/clubs/" + club.getId() + "/join").header("Authorization", bearer(student("Late")))).andExpect(status().isBadRequest());
         assertThat(clubRepository.findById(club.getId()).orElseThrow().getStatus()).isEqualTo(ClubStatus.APPROVED);
     }
+
+    @Test
+    void presidentCanDeleteEventAndCleanUpAllRelatedData() throws Exception {
+        User president = student("President");
+        User attendee = student("Attendee");
+        Club club = approvedClub(president, "Delete Club");
+        member(president, club, MembershipPosition.PRESIDENT);
+        member(attendee, club, MembershipPosition.MEMBER);
+        Event event = event(club, "To Be Deleted", null);
+
+        // Attendee RSVPs
+        mvc.perform(post("/api/events/" + event.getId() + "/rsvp")
+                .header("Authorization", bearer(attendee)))
+                .andExpect(status().isOk());
+
+        // Attendee comments
+        mvc.perform(post("/api/events/" + event.getId() + "/comments")
+                .header("Authorization", bearer(attendee))
+                .contentType(JSON).content("{\"content\":\"Excited!\"}"))
+                .andExpect(status().isOk());
+
+        // President permanently deletes event
+        mvc.perform(delete("/api/events/" + event.getId())
+                .header("Authorization", bearer(president)))
+                .andExpect(status().isNoContent());
+
+        // Confirm event is gone
+        mvc.perform(get("/api/events/" + event.getId())
+                .header("Authorization", bearer(president)))
+                .andExpect(status().isNotFound());
+    }
 }

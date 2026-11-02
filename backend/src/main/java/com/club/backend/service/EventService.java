@@ -473,22 +473,34 @@ public class EventService {
             cancelInternal(event, "Event deleted by administrator");
         }
 
-        deleteNative("DELETE FROM attendance WHERE event_id = :eventId", eventId);
-        deleteNative("DELETE FROM event_feedback WHERE event_id = :eventId", eventId);
-        deleteNative("DELETE FROM event_comments WHERE event_id = :eventId", eventId);
-        deleteNative("DELETE FROM rsvps WHERE event_id = :eventId", eventId);
-        deleteNative("UPDATE club_expenses SET event_id = NULL WHERE event_id = :eventId", eventId);
+        String eventTitle = event.getTitle();
 
-        eventRepository.delete(event);
-
-        userRepository.findById(principal.getId()).ifPresent(actor ->
-                auditLogService.log(actor, "DELETE_EVENT", "EVENT", event.getId(), event.getTitle()));
-    }
-
-    private void deleteNative(String sql, UUID eventId) {
-        entityManager.createNativeQuery(sql)
+        entityManager.createQuery("DELETE FROM Attendance a WHERE a.event.id = :eventId")
                 .setParameter("eventId", eventId)
                 .executeUpdate();
+        entityManager.createQuery("DELETE FROM EventFeedback ef WHERE ef.event.id = :eventId")
+                .setParameter("eventId", eventId)
+                .executeUpdate();
+        entityManager.createQuery("DELETE FROM CommentReport cr WHERE cr.parentId = :eventId")
+                .setParameter("eventId", eventId)
+                .executeUpdate();
+        entityManager.createQuery("DELETE FROM EventComment ec WHERE ec.event.id = :eventId")
+                .setParameter("eventId", eventId)
+                .executeUpdate();
+        entityManager.createQuery("DELETE FROM Rsvp r WHERE r.event.id = :eventId")
+                .setParameter("eventId", eventId)
+                .executeUpdate();
+        entityManager.createQuery("UPDATE ClubExpense ce SET ce.event = null WHERE ce.event.id = :eventId")
+                .setParameter("eventId", eventId)
+                .executeUpdate();
+
+        entityManager.flush();
+        entityManager.clear();
+
+        eventRepository.deleteById(eventId);
+
+        userRepository.findById(principal.getId()).ifPresent(actor ->
+                auditLogService.log(actor, "DELETE_EVENT", "EVENT", eventId, eventTitle));
     }
 
     private boolean hasSignups(Event event) {

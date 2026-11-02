@@ -43,6 +43,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     List<User> findByRole(Role role);
 
+    List<User> findByRoleAndActiveTrue(Role role);
+
     /** Users who want emails but batched into the daily digest. */
     List<User> findByEmailNotificationsEnabledTrueAndEmailDigestEnabledTrue();
 }

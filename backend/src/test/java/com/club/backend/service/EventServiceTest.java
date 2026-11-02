@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,6 +86,10 @@ class EventServiceTest {
     private CheckInTokenService checkInTokenService;
     @Mock
     private VenueService venueService;
+    @Mock
+    private EntityManager entityManager;
+    @Mock
+    private Query query;
 
     @InjectMocks
     private EventService eventService;
@@ -763,6 +769,29 @@ class EventServiceTest {
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("already approved for \"Approved Gala\"");
     }
+
+    @Test
+    void deleteEvent_presidentDeletesEventSuccessfully() {
+        Event event = existingEvent(BigDecimal.ZERO, EventApprovalStatus.NOT_REQUIRED);
+        asOfficer(MembershipPosition.PRESIDENT);
+        when(eventRepository.findById(event.getId())).thenReturn(Optional.of(event));
+        when(entityManager.createQuery(anyString())).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+
+        eventService.deleteEvent(event.getId(), principal);
+
+        verify(eventRepository).delete(event);
+        verify(auditLogService).log(eq(president), eq("DELETE_EVENT"), eq("EVENT"), eq(event.getId()), anyString());
+    }
+
+    @Test
+    void deleteEvent_nonPresidentThrowsForbidden() {
+        Event event = existingEvent(BigDecimal.ZERO, EventApprovalStatus.NOT_REQUIRED);
+        asOfficer(MembershipPosition.VP);
+        when(eventRepository.findById(event.getId())).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> eventService.deleteEvent(event.getId(), principal))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Club President");
+    }
 }
-
-

@@ -1,4 +1,5 @@
 import AdvisorRequestModal from '../../features/advisor/AdvisorRequestModal'
+import ContactAdvisorModal from '../../features/advisor/ContactAdvisorModal'
 import ResolveAdvisorRequestModal from '../../features/advisor/ResolveAdvisorRequestModal'
 import CreateClubModal from '../../features/clubs/CreateClubModal'
 import CreateEventModal from '../../features/events/CreateEventModal'
@@ -10,6 +11,7 @@ export default function DashboardModals({
   onAdvisorRequestCreated,
   onClubSaved,
   onCloseAdvisorRequest,
+  onCloseContactAdvisor,
   onCloseResolution,
   onCloseClub,
   onCloseEvent,
@@ -18,13 +20,52 @@ export default function DashboardModals({
   onRequestResolved,
   selectedAdvisorRequest,
   showAdvisorRequestModal,
+  showContactAdvisorModal,
   showCreateClubModal,
   showCreateEventModal,
 }) {
-  return <>
-    {showCreateEventModal && <CreateEventModal event={editingEvent} clubId={editingEvent?.clubId} clubs={clubs} onClose={onCloseEvent} onCreated={onEventSaved} />}
-    {showCreateClubModal && <CreateClubModal club={editingClub} onClose={onCloseClub} onCreated={onClubSaved} />}
-    {showAdvisorRequestModal && <AdvisorRequestModal isOpen={showAdvisorRequestModal} onClose={onCloseAdvisorRequest} clubs={clubs} onCreated={onAdvisorRequestCreated} />}
-    {selectedAdvisorRequest && <ResolveAdvisorRequestModal isOpen={Boolean(selectedAdvisorRequest)} onClose={onCloseResolution} request={selectedAdvisorRequest} onResolved={onRequestResolved} onDeleteClub={onDeleteClub} />}
-  </>
+  return (
+    <>
+      {showCreateEventModal && (
+        <CreateEventModal
+          event={editingEvent}
+          clubId={editingEvent?.clubId}
+          clubs={clubs}
+          onClose={onCloseEvent}
+          onCreated={onEventSaved}
+        />
+      )}
+      {showCreateClubModal && (
+        <CreateClubModal
+          club={editingClub}
+          onClose={onCloseClub}
+          onCreated={onClubSaved}
+        />
+      )}
+      {showAdvisorRequestModal && (
+        <AdvisorRequestModal
+          isOpen={showAdvisorRequestModal}
+          onClose={onCloseAdvisorRequest}
+          clubs={clubs}
+          onCreated={onAdvisorRequestCreated}
+        />
+      )}
+      {showContactAdvisorModal && (
+        <ContactAdvisorModal
+          isOpen={showContactAdvisorModal}
+          onClose={onCloseContactAdvisor}
+          clubs={clubs}
+        />
+      )}
+      {selectedAdvisorRequest && (
+        <ResolveAdvisorRequestModal
+          isOpen={Boolean(selectedAdvisorRequest)}
+          onClose={onCloseResolution}
+          request={selectedAdvisorRequest}
+          onResolved={onRequestResolved}
+          onDeleteClub={onDeleteClub}
+        />
+      )}
+    </>
+  )
 }

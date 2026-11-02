@@ -332,29 +332,34 @@ public class ClubService {
     }
 
     private void deleteRelatedClubData(UUID clubId) {
-        deleteNative("DELETE FROM announcement_comments WHERE announcement_id IN "
-                + "(SELECT id FROM club_announcements WHERE club_id = :clubId)", clubId);
-        deleteNative("DELETE FROM club_announcements WHERE club_id = :clubId", clubId);
-        deleteNative("DELETE FROM attendance WHERE event_id IN "
-                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
-        deleteNative("DELETE FROM event_feedback WHERE event_id IN "
-                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
-        deleteNative("DELETE FROM event_comments WHERE event_id IN "
-                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
-        deleteNative("DELETE FROM rsvps WHERE event_id IN "
-                + "(SELECT id FROM events WHERE club_id = :clubId)", clubId);
-        deleteNative("DELETE FROM club_expenses WHERE club_id = :clubId", clubId);
-        deleteNative("DELETE FROM club_resources WHERE club_id = :clubId", clubId);
-        deleteNative("DELETE FROM comment_reports WHERE club_id = :clubId", clubId);
-        deleteNative("DELETE FROM certificates WHERE club_id = :clubId", clubId);
-        deleteNative("DELETE FROM memberships WHERE club_id = :clubId", clubId);
-        deleteNative("DELETE FROM events WHERE club_id = :clubId", clubId);
-    }
-
-    private void deleteNative(String sql, UUID clubId) {
-        entityManager.createNativeQuery(sql)
-                .setParameter("clubId", clubId)
-                .executeUpdate();
+        entityManager.createQuery("DELETE FROM AnnouncementComment ac WHERE ac.announcement.id IN (SELECT ca.id FROM ClubAnnouncement ca WHERE ca.club.id = :clubId)")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM ClubAnnouncement ca WHERE ca.club.id = :clubId")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM Attendance a WHERE a.event.id IN (SELECT e.id FROM Event e WHERE e.club.id = :clubId)")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM EventFeedback ef WHERE ef.event.id IN (SELECT e.id FROM Event e WHERE e.club.id = :clubId)")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM CommentReport cr WHERE cr.parentId IN (SELECT e.id FROM Event e WHERE e.club.id = :clubId)")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM EventComment ec WHERE ec.event.id IN (SELECT e.id FROM Event e WHERE e.club.id = :clubId)")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM Rsvp r WHERE r.event.id IN (SELECT e.id FROM Event e WHERE e.club.id = :clubId)")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("UPDATE ClubExpense ce SET ce.event = null WHERE ce.event.id IN (SELECT e.id FROM Event e WHERE e.club.id = :clubId)")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM ClubExpense ce WHERE ce.club.id = :clubId")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM ClubResource cr WHERE cr.club.id = :clubId")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM CommentReport cr WHERE cr.club.id = :clubId")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM Certificate c WHERE c.club.id = :clubId")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM Membership m WHERE m.club.id = :clubId")
+                .setParameter("clubId", clubId).executeUpdate();
+        entityManager.createQuery("DELETE FROM Event e WHERE e.club.id = :clubId")
+                .setParameter("clubId", clubId).executeUpdate();
     }
 
     private void notifySuperAdmins(String message) {

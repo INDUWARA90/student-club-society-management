@@ -13,6 +13,7 @@ import {
   History,
   MapPin,
   Megaphone,
+  MessageSquare,
   Shield,
   Trash2,
   UserCog,
@@ -60,6 +61,7 @@ function DashboardPage() {
   const [editingClub, setEditingClub] = useState(null)
   const [showAdvisorRequestModal, setShowAdvisorRequestModal] = useState(false)
   const [selectedAdvisorRequest, setSelectedAdvisorRequest] = useState(null)
+  const [showContactAdvisorModal, setShowContactAdvisorModal] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -1828,16 +1830,6 @@ function DashboardPage() {
                     <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                   </Link>
                   <Link
-                    to="/admin/pending-clubs"
-                    className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs font-medium text-slate-800 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-200"
-                  >
-                    <span className="flex items-center gap-2">
-                      <ClipboardCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                      Pending Club Approvals
-                    </span>
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-                  </Link>
-                  <Link
                     to="/admin/venues"
                     className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs font-medium text-slate-800 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-200"
                   >
@@ -1893,6 +1885,34 @@ function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Student Faculty Advisor Support Card */}
+              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/40 p-5 shadow-xs dark:border-indigo-900/60 dark:from-indigo-950/30 dark:via-[#181b24] dark:to-purple-950/20">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+                    <GraduationCap className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                      Faculty Advisory
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Guidance &amp; society support
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                  Have questions about organizing an event, proposal approvals, or society guidance? Contact a faculty advisor directly.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowContactAdvisorModal(true)}
+                  className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-indigo-500 active:scale-[0.99]"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Contact Faculty Advisor</span>
+                </button>
+              </div>
             </>
           )}
 
@@ -1925,6 +1945,8 @@ function DashboardPage() {
         onRequestResolved={handleAdvisorRequestResolved}
         selectedAdvisorRequest={selectedAdvisorRequest}
         showAdvisorRequestModal={showAdvisorRequestModal}
+        showContactAdvisorModal={showContactAdvisorModal}
+        onCloseContactAdvisor={() => setShowContactAdvisorModal(false)}
         showCreateClubModal={showCreateClubModal}
         showCreateEventModal={showCreateEventModal}
       />

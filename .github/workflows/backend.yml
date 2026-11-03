@@ -70,6 +70,26 @@ jobs:
           chmod +x mvnw
           ./mvnw -B --no-transfer-progress verify
 
+      # Maven's final error only says that a test failed. Print the individual Surefire
+      # reports so the failing test and assertion are visible directly in the Actions log.
+      - name: Print failed test details
+        if: failure()
+        run: |
+          found=false
+          for f in target/surefire-reports/*.txt; do
+            [ -e "$f" ] || continue
+            if grep -qE 'Failures: [1-9]|Errors: [1-9]' "$f"; then
+              found=true
+              echo "::group::${f}"
+              cat "$f"
+              echo "::endgroup::"
+            fi
+          done
+          if [ "$found" = false ]; then
+            echo "No failed Surefire text report was found. Checking JVM dump files:"
+            find target/surefire-reports -maxdepth 1 -type f \( -name '*.dump' -o -name '*.dumpstream' \) -print -exec cat {} \; || true
+          fi
+
       - name: Test summary
         if: always()
         run: |

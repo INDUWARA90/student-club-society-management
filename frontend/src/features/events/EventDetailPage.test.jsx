@@ -125,7 +125,7 @@ describe('EventDetailPage', () => {
     expect(await screen.findByText(/Organizer Management Tools/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Edit event/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Show check-in QR code/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Bulk-issue certificates/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Send certificates/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Cancel event/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Delete event/i })).toBeInTheDocument()
   })

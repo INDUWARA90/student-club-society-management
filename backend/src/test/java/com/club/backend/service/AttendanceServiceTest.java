@@ -58,8 +58,6 @@ class AttendanceServiceTest {
     @Mock
     private RsvpRepository rsvpRepository;
     @Mock
-    private CertificateService certificateService;
-    @Mock
     private CheckInTokenService checkInTokenService;
 
     @InjectMocks
@@ -120,12 +118,12 @@ class AttendanceServiceTest {
     }
 
     @Test
-    void markManual_success_triggersCertificateCheck() {
+    void markManual_success_recordsAttendanceWithoutIssuingCertificate() {
         asOfficer();
 
-        attendanceService.markManual(event.getId(), target.getId(), officerPrincipal);
+        AttendanceResponse response = attendanceService.markManual(event.getId(), target.getId(), officerPrincipal);
 
-        verify(certificateService).checkAndIssueCertificate(target, club);
+        assertThat(response.eventId()).isEqualTo(event.getId());
     }
 
     @Test

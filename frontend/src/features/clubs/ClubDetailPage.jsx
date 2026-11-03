@@ -671,7 +671,6 @@ function ClubDetailPage() {
     if (Number(club.membershipFee) > 0) tags.push(`Paid ($${club.membershipFee})`)
     else tags.push('Free Membership')
 
-    if (club.certificateThreshold) tags.push(`Certificate (${club.certificateThreshold} events)`)
     if (club.status === 'APPROVED') tags.push('Verified Society')
     return tags
   }, [club])
@@ -1317,12 +1316,6 @@ function ClubDetailPage() {
                   <dt className="text-slate-500 dark:text-slate-400">Membership Fee</dt>
                   <dd className="font-bold text-slate-900 dark:text-white">
                     {Number(club.membershipFee) > 0 ? `$${club.membershipFee}` : 'Free'}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <dt className="text-slate-500 dark:text-slate-400">Certificate Requirement</dt>
-                  <dd className="font-bold text-slate-900 dark:text-white">
-                    {club.certificateThreshold ? `${club.certificateThreshold} events` : '3 events'}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between py-2">

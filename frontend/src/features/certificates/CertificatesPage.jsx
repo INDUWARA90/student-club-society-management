@@ -80,6 +80,25 @@ function getClubCategoryTheme(category) {
   }
 }
 
+function DemoSignature({ variant = 'administrator' }) {
+  const path = variant === 'advisor'
+    ? 'M8 31c8-19 13-22 16-8 2 11 4-16 11-17 6-1-5 27 5 23 7-3 5-18 10-18 6 0-4 20 7 15 7-3 10-11 15-5 5 5-7 15 7 10 9-5 15-11 24-2'
+    : 'M9 30c7-16 12-24 16-20 6 6-6 24 2 20 8-4 7-24 14-23 7 1-7 27 5 21 9-5 6-17 13-15 8 2-6 19 6 16 8-2 9-10 15-7 5 3-6 12 9 8 11-4 15-7 22-3'
+
+  return (
+    <svg
+      aria-label="Demo signature"
+      className="mx-auto -mb-px h-7 w-28 sm:w-36"
+      viewBox="0 0 120 38"
+      fill="none"
+      role="img"
+    >
+      <path d={path} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 34c22-3 54-3 89-1" stroke="currentColor" strokeWidth="0.7" strokeLinecap="round" opacity="0.5" />
+    </svg>
+  )
+}
+
 function CertificatesPage() {
   const dispatch = useDispatch()
   const { items, status } = useSelector((state) => state.certificates)
@@ -202,7 +221,7 @@ function CertificatesPage() {
           <EmptyState
             icon={Award}
             title="No certificates earned yet"
-            description="You will automatically earn verified certificates once you meet attendance thresholds for your clubs and workshops."
+            description="You will automatically earn a verified certificate for every event you attend."
           />
           <div className="mt-6 text-center">
             <Link
@@ -264,10 +283,10 @@ function CertificatesPage() {
                   {/* Society Name & Certificate Info */}
                   <div>
                     <h3 className="text-lg font-bold tracking-tight text-slate-900 group-hover:text-[#6366f1] dark:text-white dark:group-hover:text-[#818cf8] transition-colors line-clamp-1">
-                      {certificate.clubName}
+                      {certificate.eventTitle || certificate.clubName}
                     </h3>
                     <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      Certificate of Active Society Participation
+                      {certificate.eventTitle ? `Organized by ${certificate.clubName}` : 'Certificate of Event Attendance'}
                     </p>
                     <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
                       Awarded on {formatDate(certificate.issuedAt)}
@@ -411,12 +430,12 @@ function CertificatesPage() {
                         />
                       )}
                       <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-amber-300">
-                        {previewCert.clubName}
+                        {previewCert.eventTitle || previewCert.clubName}
                       </p>
                     </div>
 
                     <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {previewCert.clubCategory || 'General'} Society &bull; Member in Good Standing
+                      {previewCert.clubName} &bull; Verified Event Attendance
                     </p>
 
                     <p className="mt-2 text-[11px] text-slate-400">
@@ -426,9 +445,10 @@ function CertificatesPage() {
                     {/* Signatures & Seal Section */}
                     <div className="mt-8 grid grid-cols-3 items-end gap-2 text-center text-xs">
                       <div>
+                        <DemoSignature />
                         <div className="mx-auto w-24 sm:w-32 border-b border-slate-400 dark:border-slate-600" />
-                        <p className="mt-1.5 font-bold text-slate-800 dark:text-slate-200 text-[11px]">Club President</p>
-                        <p className="text-[10px] text-slate-400 truncate">{previewCert.clubName}</p>
+                        <p className="mt-1.5 font-bold text-slate-800 dark:text-slate-200 text-[11px]">Club Administrator</p>
+                        <p className="text-[10px] text-slate-400 truncate">Demo signature · {previewCert.clubName}</p>
                       </div>
 
                       <div className="flex flex-col items-center">
@@ -441,9 +461,10 @@ function CertificatesPage() {
                       </div>
 
                       <div>
+                        <DemoSignature variant="advisor" />
                         <div className="mx-auto w-24 sm:w-32 border-b border-slate-400 dark:border-slate-600" />
                         <p className="mt-1.5 font-bold text-slate-800 dark:text-slate-200 text-[11px]">Faculty Advisor</p>
-                        <p className="text-[10px] text-slate-400">Office of Student Affairs</p>
+                        <p className="text-[10px] text-slate-400">Demo signature · Office of Student Affairs</p>
                       </div>
                     </div>
 

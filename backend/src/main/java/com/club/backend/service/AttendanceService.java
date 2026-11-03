@@ -46,7 +46,6 @@ public class AttendanceService {
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
     private final RsvpRepository rsvpRepository;
-    private final CertificateService certificateService;
     private final CheckInTokenService checkInTokenService;
 
     /** Manual marking by a club officer, on behalf of any user. */
@@ -110,8 +109,6 @@ public class AttendanceService {
 
         Attendance attendance = Attendance.builder().event(event).user(user).method(method).build();
         attendance = attendanceRepository.save(attendance);
-
-        certificateService.checkAndIssueCertificate(user, event.getClub());
 
         return AttendanceResponse.from(attendance);
     }

@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Stream;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import com.club.backend.entity.Attendance;
 import com.club.backend.entity.AttendanceMethod;
+import com.club.backend.entity.Certificate;
 import com.club.backend.entity.Club;
 import com.club.backend.entity.ClubAnnouncement;
 import com.club.backend.entity.ClubExpense;
@@ -29,6 +32,7 @@ import com.club.backend.entity.RsvpStatus;
 import com.club.backend.entity.User;
 import com.club.backend.entity.Venue;
 import com.club.backend.repository.AttendanceRepository;
+import com.club.backend.repository.CertificateRepository;
 import com.club.backend.repository.ClubAnnouncementRepository;
 import com.club.backend.repository.ClubExpenseRepository;
 import com.club.backend.repository.ClubRepository;
@@ -57,6 +61,7 @@ public class DataSeeder implements CommandLineRunner {
     private final EventRepository eventRepository;
     private final RsvpRepository rsvpRepository;
     private final AttendanceRepository attendanceRepository;
+    private final CertificateRepository certificateRepository;
     private final ClubAnnouncementRepository announcementRepository;
     private final ClubExpenseRepository expenseRepository;
     private final VenueRepository venueRepository;
@@ -70,6 +75,7 @@ public class DataSeeder implements CommandLineRunner {
 
         if (userRepository.count() > 0) {
             seedExpensesIfMissing();
+            seedCertificateDemonstrationIfMissing();
             return;
         }
 
@@ -148,6 +154,7 @@ public class DataSeeder implements CommandLineRunner {
 
         attendanceRepository.save(Attendance.builder().event(pastWorkshop).user(bob).method(AttendanceMethod.MANUAL).build());
         attendanceRepository.save(Attendance.builder().event(pastWorkshop).user(carol).method(AttendanceMethod.QR).build());
+        seedCertificateDemonstrationIfMissing();
 
         seedAuditLogsIfMissing(superAdmin, advisor, alice, techClub, artClub, pastWorkshop);
 
@@ -201,6 +208,56 @@ public class DataSeeder implements CommandLineRunner {
                 .category("Food & Refreshments")
                 .expenseDate(LocalDate.now().minusDays(3))
                 .build());
+    }
+
+    /**
+     * Keeps the certificate screen ready for a demonstration: a completed event, two recorded attendees, and a
+     * separately verifiable event certificate for each attendee. It is idempotent, so restarting the demo stack
+     * never creates duplicates.
+     */
+    private void seedCertificateDemonstrationIfMissing() {
+        Club club = clubRepository.findAll().stream().findFirst().orElse(null);
+        if (club == null) {
+            return;
+        }
+
+        Event completedEvent = eventRepository.findByTitleContainingIgnoreCase("Certificate Showcase").stream()
+                .findFirst()
+                .orElseGet(() -> createEvent(
+                        club,
+                        "Campus Innovation Certificate Showcase",
+                        "Completed demonstration event with verified attendee certificates.",
+                        Instant.now().minus(10, ChronoUnit.DAYS),
+                        BigDecimal.ZERO,
+                        60,
+                        false,
+                        EventApprovalStatus.NOT_REQUIRED,
+                        venueRepository.findByNameIgnoreCase("Innovation & Robotics Lab").orElse(null)));
+
+        // Use the named Tech Innovators members so the certificate demo is predictable.
+        List<User> attendees = Stream.of("bob@example.com", "carol@example.com")
+                .flatMap(email -> userRepository.findByEmail(email).stream())
+                .toList();
+        if (attendees.isEmpty()) {
+            attendees = userRepository.findByRole(Role.STUDENT).stream().limit(2).toList();
+        }
+        for (User attendee : attendees) {
+            if (attendanceRepository.findByEventIdAndUserId(completedEvent.getId(), attendee.getId()).isEmpty()) {
+                attendanceRepository.save(Attendance.builder()
+                        .event(completedEvent)
+                        .user(attendee)
+                        .method(AttendanceMethod.MANUAL)
+                        .build());
+            }
+            if (certificateRepository.findByUserIdAndEventId(attendee.getId(), completedEvent.getId()).isEmpty()) {
+                certificateRepository.save(Certificate.builder()
+                        .user(attendee)
+                        .club(club)
+                        .event(completedEvent)
+                        .verificationCode("DEMO-EVENT-" + attendee.getId().toString().substring(0, 8).toUpperCase())
+                        .build());
+            }
+        }
     }
 
 

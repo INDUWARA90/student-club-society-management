@@ -43,9 +43,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional
 public class CertificateService {
 
-    /** Used for clubs that haven't set their own threshold: attend at least this many events to earn the certificate. */
-    static final int DEFAULT_ATTENDANCE_THRESHOLD = 3;
-
     private static final Set<MembershipPosition> BULK_ISSUE_POSITIONS = Set.of(
             MembershipPosition.PRESIDENT, MembershipPosition.VP,
             MembershipPosition.SECRETARY, MembershipPosition.TREASURER);
@@ -85,39 +82,21 @@ public class CertificateService {
         }
     }
 
-    /** The club's own threshold (set by its President), falling back to the sitewide default. */
-    static int thresholdFor(Club club) {
-        Integer configured = club.getCertificateThreshold();
-        return configured != null && configured >= 1 ? configured : DEFAULT_ATTENDANCE_THRESHOLD;
-    }
-
-    /** Issues the club's certificate once an approved member has attended enough of its events. */
-    public IssuanceOutcome checkAndIssueCertificate(User user, Club club) {
-        if (certificateRepository.findByUserIdAndClubId(user.getId(), club.getId()).isPresent()) {
+    /** Awards one certificate for this event to every person whose attendance is recorded. */
+    public IssuanceOutcome checkAndIssueCertificate(User user, Event event) {
+        if (certificateRepository.findByUserIdAndEventId(user.getId(), event.getId()).isPresent()) {
             return IssuanceOutcome.ALREADY_ISSUED;
         }
-
-        boolean isMember = membershipRepository.findByUserIdAndClubId(user.getId(), club.getId())
-                .filter(m -> m.getStatus() == MembershipStatus.APPROVED)
-                .isPresent();
-        if (!isMember) {
-            return IssuanceOutcome.NOT_YET_ELIGIBLE;
-        }
-
-        long attended = attendanceRepository.countByUserIdAndEvent_Club_Id(user.getId(), club.getId());
-        if (attended >= thresholdFor(club)) {
-            Certificate certificate = Certificate.builder()
-                    .user(user)
-                    .club(club)
-                    .verificationCode(UUID.randomUUID().toString())
-                    .build();
-            certificateRepository.save(certificate);
-            notificationService.notify(user,
-                    "You earned a certificate from " + club.getName() + "! Download it from your certificates page.");
-            return IssuanceOutcome.ISSUED;
-        }
-
-        return IssuanceOutcome.NOT_YET_ELIGIBLE;
+        Certificate certificate = Certificate.builder()
+                .user(user)
+                .club(event.getClub())
+                .event(event)
+                .verificationCode(UUID.randomUUID().toString())
+                .build();
+        certificateRepository.save(certificate);
+        notificationService.notify(user,
+                "You earned a certificate for " + event.getTitle() + "! Download it from your certificates page.");
+        return IssuanceOutcome.ISSUED;
     }
 
     /** Officer-triggered sweep: run the same eligibility check for every attendee of one event. */
@@ -135,6 +114,12 @@ public class CertificateService {
         if (!event.getClub().getId().equals(clubId)) {
             throw ApiException.notFound("Event not found");
         }
+        if (event.isCancelled()) {
+            throw ApiException.badRequest("Certificates can't be issued for a cancelled event");
+        }
+        if (event.getEventDate().isAfter(java.time.Instant.now())) {
+            throw ApiException.badRequest("Certificates can be issued once the event has started");
+        }
 
         List<Attendance> attendances = attendanceRepository.findByEventId(eventId);
         int issued = 0;
@@ -142,7 +127,7 @@ public class CertificateService {
         int notYetEligible = 0;
 
         for (Attendance attendance : attendances) {
-            IssuanceOutcome outcome = checkAndIssueCertificate(attendance.getUser(), event.getClub());
+            IssuanceOutcome outcome = checkAndIssueCertificate(attendance.getUser(), event);
             switch (outcome) {
                 case ISSUED -> issued++;
                 case ALREADY_ISSUED -> alreadyIssued++;
@@ -198,6 +183,7 @@ public class CertificateService {
                 PDType1Font bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
                 PDType1Font italicFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_OBLIQUE);
                 PDType1Font serifBold = new PDType1Font(Standard14Fonts.FontName.TIMES_BOLD);
+                PDType1Font signatureFont = new PDType1Font(Standard14Fonts.FontName.TIMES_ITALIC);
 
                 // Outer border (Club Theme Primary)
                 content.setStrokingColor(theme.pr(), theme.pg(), theme.pb());
@@ -257,17 +243,18 @@ public class CertificateService {
                 content.lineTo(nameStartX + nameWidth + 15, 372);
                 content.stroke();
 
-                // 6. Meritorious citation
-                drawCenteredText(content, bodyFont, 11f, "for commendable dedication, active participation, and meritorious engagement in", 340, pageWidth, 0.35f, 0.35f, 0.38f);
+                // 6. Event attendance citation
+                drawCenteredText(content, bodyFont, 11f, "for verified attendance and active participation in", 340, pageWidth, 0.35f, 0.35f, 0.38f);
 
-                // 7. Club Name
+                // 7. Event title (legacy certificates fall back to the club name)
                 String clubName = certificate.getClub() != null ? certificate.getClub().getName() : "Student Society";
-                drawFittedCenteredText(content, titleFont, 18f, 13f, pageWidth - 140, clubName, 310, pageWidth, theme.pr(), theme.pg(), theme.pb());
+                String eventTitle = certificate.getEvent() != null ? certificate.getEvent().getTitle() : clubName;
+                drawFittedCenteredText(content, titleFont, 18f, 13f, pageWidth - 140, eventTitle, 310, pageWidth, theme.pr(), theme.pg(), theme.pb());
 
-                // 8. Club Category & Member Standing
+                // 8. Organizing club
                 String clubCategory = (certificate.getClub() != null && certificate.getClub().getCategory() != null)
                         ? certificate.getClub().getCategory() : "General";
-                drawCenteredText(content, italicFont, 10f, clubCategory + " Society  -  Member in Good Standing", 286, pageWidth, 0.45f, 0.45f, 0.48f);
+                drawCenteredText(content, italicFont, 10f, "Organized by " + clubName + "  -  " + clubCategory, 286, pageWidth, 0.45f, 0.45f, 0.48f);
 
                 // 9. Issued Date
                 String issuedDate = certificate.getIssuedAt() != null
@@ -276,7 +263,7 @@ public class CertificateService {
                 drawCenteredText(content, bodyFont, 9.5f, "Officially conferred on " + issuedDate, 262, pageWidth, 0.45f, 0.45f, 0.48f);
 
                 // 10. Dual Signatures & Gold Center Seal
-                // Left: President
+                // Left: Club administrator (clearly marked demonstration signature).
                 content.setStrokingColor(0.55f, 0.55f, 0.60f);
                 content.setLineWidth(1.0f);
                 content.moveTo(90f, 160f);
@@ -284,10 +271,17 @@ public class CertificateService {
                 content.stroke();
 
                 content.beginText();
+                content.setFont(signatureFont, 16f);
+                content.setNonStrokingColor(theme.pr(), theme.pg(), theme.pb());
+                content.newLineAtOffset(108f, 169f);
+                content.showText("Club Admin (Demo)");
+                content.endText();
+
+                content.beginText();
                 content.setFont(titleFont, 9f);
                 content.setNonStrokingColor(theme.pr(), theme.pg(), theme.pb());
                 content.newLineAtOffset(90f, 146f);
-                content.showText("Club President");
+                content.showText("Club Administrator");
                 content.endText();
 
                 content.beginText();
@@ -302,6 +296,13 @@ public class CertificateService {
                 content.moveTo(pageWidth - 260f, 160f);
                 content.lineTo(pageWidth - 90f, 160f);
                 content.stroke();
+
+                content.beginText();
+                content.setFont(signatureFont, 16f);
+                content.setNonStrokingColor(theme.pr(), theme.pg(), theme.pb());
+                content.newLineAtOffset(pageWidth - 244f, 169f);
+                content.showText("Faculty Advisor (Demo)");
+                content.endText();
 
                 content.beginText();
                 content.setFont(titleFont, 9f);

@@ -63,7 +63,6 @@ function ClubSettingsPage() {
   // Privacy & Access State
   const [joinPolicy, setJoinPolicy] = useState('OPEN')
   const [membershipFee, setMembershipFee] = useState(0)
-  const [certificateThreshold, setCertificateThreshold] = useState(3)
   const [showBudgetToMembers, setShowBudgetToMembers] = useState(false)
 
   // Gathering Info
@@ -159,7 +158,6 @@ function ClubSettingsPage() {
           setDescription(c.description || '')
           if (c.joinPolicy) setJoinPolicy(c.joinPolicy)
           if (c.membershipFee !== undefined) setMembershipFee(c.membershipFee)
-          if (c.certificateThreshold !== undefined) setCertificateThreshold(c.certificateThreshold)
           if (c.showBudgetToMembers !== undefined) setShowBudgetToMembers(Boolean(c.showBudgetToMembers))
           if (c.logoB64) setIconImage(c.logoB64)
           if (c.category) {
@@ -246,7 +244,6 @@ function ClubSettingsPage() {
         category,
         joinPolicy,
         membershipFee: Number(membershipFee) || 0,
-        certificateThreshold: Number(certificateThreshold) || 3,
         showBudgetToMembers: Boolean(showBudgetToMembers),
         logoB64: iconImage || null,
       })
@@ -963,7 +960,7 @@ function ClubSettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
+                <div className="grid grid-cols-1 gap-4 pt-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
                       Membership Dues / Fee ($)
@@ -979,23 +976,6 @@ function ClubSettingsPage() {
                     />
                     <p className="mt-1 text-[11px] text-slate-400">
                       Set to 0 for free society membership.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Certificate Attendance Threshold
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={certificateThreshold}
-                      onChange={(e) => setCertificateThreshold(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-[#6366f1] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                    />
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Number of verified event check-ins required to earn certificate.
                     </p>
                   </div>
                 </div>

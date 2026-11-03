@@ -281,7 +281,7 @@ function EventDetailPage() {
       const { data } = await api.post(`/certificates/clubs/${event.clubId}/events/${eventId}/bulk-issue`)
       showToast(
         `Issued ${data.issuedCount} new certificate${data.issuedCount === 1 ? '' : 's'} — ` +
-          `${data.alreadyIssuedCount} already had one, ${data.notYetEligibleCount} not yet eligible`,
+          `${data.alreadyIssuedCount} already had one for this event`,
       )
     } catch (e) {
       showToast(e.response?.data?.message || 'Something went wrong', 'error')
@@ -349,6 +349,7 @@ function EventDetailPage() {
   const isPresident = myPosition === 'PRESIDENT' || isSuperAdmin
   const alreadyAttended = attendance.some((a) => a.userId === user?.id)
   const canRsvp = !event.cancelled && (event.approvalStatus === 'APPROVED' || event.approvalStatus === 'NOT_REQUIRED')
+  const canSendCertificates = !event.cancelled && new Date(event.eventDate) <= new Date()
 
   const dateObj = new Date(event.eventDate)
   const monthStr = dateObj.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
@@ -485,9 +486,15 @@ function EventDetailPage() {
               <QrCode className="h-3.5 w-3.5 text-slate-500" />
               Show check-in QR code
             </Button>
-            <Button variant="secondary" size="sm" onClick={handleBulkIssueCertificates}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleBulkIssueCertificates}
+              disabled={!canSendCertificates}
+              title={canSendCertificates ? 'Send certificates to recorded attendees' : 'Certificates can be sent once the event starts'}
+            >
               <Award className="h-3.5 w-3.5 text-slate-500" />
-              Bulk-issue certificates
+              Send certificates
             </Button>
             {!event.cancelled && (
               <Button variant="dangerOutline" size="sm" onClick={handleCancelEvent}>

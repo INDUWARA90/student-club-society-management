@@ -40,7 +40,7 @@ import lombok.RequiredArgsConstructor;
 public class ClubService {
 
     private static final BigDecimal MAX_MEMBERSHIP_FEE = new BigDecimal("100000");
-    private static final int DEFAULT_CERTIFICATE_THRESHOLD = 3;
+    private static final int DEFAULT_CERTIFICATE_THRESHOLD = 1;
     private static final int MAX_CERTIFICATE_THRESHOLD = 100;
     private static final Set<MembershipPosition> OFFICER_POSITIONS = Set.of(
             MembershipPosition.PRESIDENT,

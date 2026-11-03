@@ -780,7 +780,7 @@ class EventServiceTest {
 
         eventService.deleteEvent(event.getId(), principal);
 
-        verify(eventRepository).delete(event);
+        verify(eventRepository).deleteById(event.getId());
         verify(auditLogService).log(eq(president), eq("DELETE_EVENT"), eq("EVENT"), eq(event.getId()), anyString());
     }
 

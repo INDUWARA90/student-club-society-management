@@ -62,10 +62,10 @@ public class Club {
     @Builder.Default
     private BigDecimal membershipFee = BigDecimal.ZERO;
 
-    /** Events a member must attend to earn the club's certificate; null falls back to the sitewide default. */
+    /** Legacy setting retained for existing club records; certificates are now awarded per event. */
     @Column(name = "certificate_threshold")
     @Builder.Default
-    private Integer certificateThreshold = 3;
+    private Integer certificateThreshold = 1;
 
     /** Archived clubs are closed: hidden from browsing, no joins, no new events. Kept for the record. */
     @Column(nullable = false)

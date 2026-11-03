@@ -12,6 +12,8 @@ public record CertificateResponse(
         String clubName,
         String clubCategory,
         String clubLogoB64,
+        UUID eventId,
+        String eventTitle,
         String holderName,
         Instant issuedAt,
         String verificationCode) {
@@ -27,6 +29,8 @@ public record CertificateResponse(
                 certificate.getClub().getName(),
                 category,
                 logo,
+                certificate.getEvent() != null ? certificate.getEvent().getId() : null,
+                certificate.getEvent() != null ? certificate.getEvent().getTitle() : null,
                 holder,
                 certificate.getIssuedAt(),
                 certificate.getVerificationCode());

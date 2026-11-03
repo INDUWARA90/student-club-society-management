@@ -19,9 +19,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Generated as a PDF on demand once a student crosses an attendance threshold for that club. */
+/** A verified certificate awarded to a student for attending a specific event. */
 @Entity
-@Table(name = "certificates", uniqueConstraints = @UniqueConstraint(columnNames = { "user_id", "club_id" }))
+@Table(name = "certificates", uniqueConstraints = @UniqueConstraint(columnNames = { "user_id", "event_id" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -40,6 +40,11 @@ public class Certificate {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "club_id", nullable = false)
     private Club club;
+
+    /** The attended event this certificate recognizes. Legacy club certificates have no event. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    private Event event;
 
     /** Public code printed on the PDF so anyone can verify the certificate is genuine. */
     @Column(name = "verification_code", unique = true, length = 36)

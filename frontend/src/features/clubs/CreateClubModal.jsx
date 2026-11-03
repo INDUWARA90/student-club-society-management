@@ -49,7 +49,6 @@ function CreateClubModal({ club, onClose, onCreated }) {
       joinPolicy,
       logoB64,
       membershipFee: Number(club?.membershipFee ?? 0),
-      certificateThreshold: Number(club?.certificateThreshold ?? 3),
     }
     const result = isEdit
       ? await dispatch(updateClub({ clubId: club.id, payload }))

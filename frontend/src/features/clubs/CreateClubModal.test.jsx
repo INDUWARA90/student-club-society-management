@@ -67,7 +67,7 @@ describe('CreateClubModal', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('does not display membership fee or certificate threshold fields and sends defaults', async () => {
+  it('does not display membership fee or certificate threshold fields', async () => {
     const axios = (await import('../../api/axios')).default
     axios.post.mockResolvedValueOnce({
       data: { id: 'c2', name: 'Robotics', category: 'Tech', status: 'APPROVED' },
@@ -85,7 +85,7 @@ describe('CreateClubModal', () => {
     await waitFor(() =>
       expect(axios.post).toHaveBeenLastCalledWith(
         '/clubs',
-        expect.objectContaining({ name: 'Robotics', membershipFee: 0, certificateThreshold: 3 }),
+        expect.objectContaining({ name: 'Robotics', membershipFee: 0 }),
       ),
     )
   })

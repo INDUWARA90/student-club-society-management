@@ -10,7 +10,7 @@ import com.club.backend.entity.Certificate;
 
 public interface CertificateRepository extends JpaRepository<Certificate, UUID> {
 
-    Optional<Certificate> findByUserIdAndClubId(UUID userId, UUID clubId);
+    Optional<Certificate> findByUserIdAndEventId(UUID userId, UUID eventId);
 
     List<Certificate> findByUserId(UUID userId);
 
